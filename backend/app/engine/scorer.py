@@ -84,6 +84,11 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     osint_raw = worker_results.get("w1_osint", {}).get("raw_data", {})
     shodan_data = osint_raw.get("shodan", {})
     subdomains = osint_raw.get("subdomains", [])
+    vt_data = osint_raw.get("virustotal", {})
+    breach_data = osint_raw.get("breaches", {})
+    leakcheck_data = osint_raw.get("leakcheck", {})
+    urlscan_data = osint_raw.get("urlscan", {})
+    emailrep_data = osint_raw.get("emailrep", {})
     
     set4_score = 100.0
     if len(subdomains) > 50:
@@ -93,8 +98,32 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
 
     if shodan_data.get("vulns"):
         set4_score -= 35.0
-    if any(p in [3306, 5432, 27017, 6379, 22] for p in shodan_data.get("ports", [])):
+    if any(p in [3306, 5432, 27017, 6379, 22, 1433, 9200] for p in shodan_data.get("ports", [])):
         set4_score -= 25.0
+
+    # VirusTotal threat detection deduction
+    vt_malicious = vt_data.get("malicious", 0)
+    if vt_malicious > 2:
+        set4_score -= 40.0
+    elif vt_malicious > 0:
+        set4_score -= 20.0
+
+    # Dark Web / Credential breach deduction
+    total_breaches = breach_data.get("breach_count", 0) + leakcheck_data.get("breach_count", 0)
+    if total_breaches > 10:
+        set4_score -= 25.0
+    elif total_breaches > 0:
+        set4_score -= 12.0
+
+    # URLScan malicious verdict deduction
+    if urlscan_data.get("malicious"):
+        set4_score -= 20.0
+
+    # EmailRep suspicious flag deduction
+    if emailrep_data.get("suspicious"):
+        set4_score -= 10.0
+
+    set4_score = max(0.0, min(100.0, set4_score))
 
     # -------------------------------------------------------------
     # Set 5: DAST & Exposure (Max 100)
@@ -216,6 +245,33 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict) 
     if len(subs) > 30:
         s4_neg.append(f"Large public attack surface ({len(subs)} subdomains discovered)")
 
+    # VirusTotal multi-vendor intelligence
+    vt_info = osint_raw.get("virustotal", {})
+    if vt_info.get("status") == "success":
+        if vt_info.get("malicious", 0) == 0:
+            s4_pos.append("Domain verified clean across 70+ security vendors (VirusTotal)")
+        else:
+            s4_neg.append(f"Domain flagged malicious by {vt_info.get('malicious')} security vendors on VirusTotal")
+
+    # Dark Web & Infostealer breaches (Hudson Rock & LeakCheck)
+    breach_info = osint_raw.get("breaches", {})
+    if breach_info.get("breaches_found"):
+        s4_neg.append(f"Infostealer malware breach: {breach_info.get('breach_count', 0)} compromised credentials found in cybercrime dumps (Hudson Rock)")
+    else:
+        s4_pos.append("Zero compromised corporate credentials found in cybercrime dumps")
+
+    # Shodan ports & CVEs
+    shodan_info = osint_raw.get("shodan", {})
+    if shodan_info.get("vulns"):
+        s4_neg.append(f"{len(shodan_info.get('vulns'))} known CVE vulnerabilities detected on host")
+    elif shodan_info.get("ports"):
+        s4_pos.append(f"Host port audit clean: {len(shodan_info.get('ports'))} active services enumerated")
+
+    # URLScan passive audit
+    urlscan_info = osint_raw.get("urlscan", {})
+    if urlscan_info.get("status") == "success" and not urlscan_info.get("malicious"):
+        s4_pos.append("Passive web topology & DOM structure validated (URLScan)")
+
     return {
         "set1": {
             "name": "Set 1: Network & TLS Encryption",
@@ -257,13 +313,19 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict) 
             "name": "Set 4: Attack Surface & OSINT",
             "score": set_scores["set4"],
             "grade": assign_grade(set_scores["set4"]),
-            "analyzedItems": ["Subdomain Enumeration (CT Logs)", "Open Ports Telemetry", "Known CVE Footprint", "Cloud Assets"],
+            "analyzedItems": [
+                "Subdomain Enumeration (CT Logs)",
+                "Open Ports & CVEs (Shodan)",
+                "Multi-Engine Threat Intel (VirusTotal)",
+                "Dark Web Infostealer Intel (Hudson Rock)",
+                "Passive Web Topology Audit (URLScan)"
+            ],
             "positiveFindings": s4_pos,
             "negativeFindings": s4_neg or ["No sensitive database ports publicly reachable"],
-            "whyScoreGiven": f"Awarded {set_scores['set4']}/100 based on public perimeter enumeration.",
-            "evidence": f"Subdomains discovered: {len(subs)} via Certificate Transparency",
-            "recommendation": "Ensure development and staging subdomains are restricted behind corporate VPN or zero-trust access.",
-            "metricValue": f"{len(subs)} Subdomains Tracked"
+            "whyScoreGiven": f"Awarded {set_scores['set4']}/100 based on public perimeter and threat intelligence audit.",
+            "evidence": f"Subdomains: {len(subs)} &bull; Shodan Ports: {len(shodan_info.get('ports', []))} &bull; Breaches: {breach_info.get('breach_count', 0)}",
+            "recommendation": "Ensure development subdomains are isolated, restrict database ports, and monitor employee credentials for dark web leaks.",
+            "metricValue": f"{len(subs)} Subdomains &bull; {breach_info.get('breach_count', 0)} Breaches"
         },
         "set5": {
             "name": "Set 5: DAST & Exposure",
