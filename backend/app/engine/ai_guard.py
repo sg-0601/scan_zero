@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import json
 import httpx
@@ -8,10 +9,10 @@ logger = logging.getLogger(__name__)
 async def verify_with_llm(finding: dict, evidence: dict) -> bool:
     """Ask Gemini if this is a genuine vulnerability using clean async REST API."""
     if not settings.GEMINI_API_KEY:
-        return False  # Default to not filtering if no key provided
+        return False
         
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={settings.GEMINI_API_KEY}"
         prompt = (
             f"Given this security finding: '{finding.get('title')}' and evidence: {json.dumps(evidence)}. "
             "Is this a genuine security vulnerability or likely a false positive? Reply only with 'GENUINE' or 'FALSE_POSITIVE'."
@@ -24,7 +25,7 @@ async def verify_with_llm(finding: dict, evidence: dict) -> bool:
             ]
         }
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.post(url, json=payload)
             if resp.status_code == 200:
                 data = resp.json()
@@ -34,13 +35,13 @@ async def verify_with_llm(finding: dict, evidence: dict) -> bool:
                 logger.warning(f"Gemini API returned status {resp.status_code}")
                 return False
     except Exception as e:
-        logger.error(f"LLM verification failed: {e}")
+        logger.warning(f"LLM verification skipped: {e}")
         return False
 
 async def check_epss(cve_id: str) -> float:
     """Query FIRST.org EPSS API for exploit probability score."""
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"https://api.first.org/data/v1/epss?cve={cve_id}")
             if resp.status_code == 200:
                 data = resp.json()
@@ -56,10 +57,27 @@ async def check_cisa_kev(cve_id: str) -> bool:
     return False
 
 async def filter_findings(findings: list) -> list:
-    """Run all findings through LLM + EPSS pipeline."""
-    processed = []
+    """Run critical findings through LLM verification in parallel without blocking."""
+    if not settings.GEMINI_API_KEY or not findings:
+        for f in findings:
+            f["is_false_positive"] = False
+        return findings
+
+    # Only verify top critical/high findings (max 3) in parallel to respect 15 RPM rate limit
+    candidates = [f for f in findings if f.get("severity") in ("critical", "high")][:3]
+    
+    async def _check(f):
+        try:
+            is_fp = await asyncio.wait_for(verify_with_llm(f, f.get("evidence", {})), timeout=4.0)
+            f["is_false_positive"] = is_fp
+        except Exception:
+            f["is_false_positive"] = False
+
+    if candidates:
+        await asyncio.gather(*[_check(f) for f in candidates], return_exceptions=True)
+
     for f in findings:
-        is_fp = await verify_with_llm(f, f.get("evidence", {}))
-        f["is_false_positive"] = is_fp
-        processed.append(f)
-    return processed
+        if "is_false_positive" not in f:
+            f["is_false_positive"] = False
+
+    return findings

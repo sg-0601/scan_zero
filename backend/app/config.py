@@ -7,11 +7,12 @@ class Settings(BaseSettings):
     SHODAN_API_KEY: str = ""
     HIBP_API_KEY: str = ""
     DEHASHED_API_KEY: str = ""
-    CENSYS_API_ID: str = ""
-    CENSYS_API_SECRET: str = ""
+    CENSYS_API_TOKEN: str = ""
     GITHUB_TOKEN: str = ""
     INTELX_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    ZAP_API_URL: str = ""
+    ZAP_API_KEY: str = ""
     
     CACHE_TTL_HOURS: int = 6
     SCAN_TIMEOUT_SECONDS: int = 30

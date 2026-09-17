@@ -3,6 +3,7 @@ import subprocess
 import shutil
 import json
 from app.workers.base import BaseWorker
+from app.config import settings
 
 class DastWorker(BaseWorker):
     name = "w5_dast"
@@ -30,6 +31,19 @@ class DastWorker(BaseWorker):
                 "severity": vuln.get('info', {}).get('severity', 'info'),
                 "evidence": {"template": vuln.get('template-id')}
             })
+
+        # 3. OWASP ZAP Scan (if daemon running)
+        zap_res = await self.zap_scan(url)
+        raw_data["zap"] = zap_res
+        if zap_res.get("status") == "connected" and zap_res.get("alerts"):
+            for a in zap_res.get("alerts", [])[:5]:
+                findings.append({
+                    "title": f"OWASP ZAP: {a.get('alert', 'Vulnerability Detected')}",
+                    "description": a.get('description', 'Detected by OWASP ZAP dynamic analysis.')[:200],
+                    "severity": a.get('risk', 'Low').lower(),
+                    "category": "dast",
+                    "evidence": {"param": a.get('param'), "url": a.get('url')}
+                })
 
         return {"findings": findings, "raw_data": raw_data}
 
@@ -99,3 +113,27 @@ class DastWorker(BaseWorker):
             return {"status": "success", "vulnerabilities": results}
         except Exception as e:
             return {"status": "error", "error": str(e)}
+
+    async def zap_scan(self, url: str) -> dict:
+        """Query OWASP ZAP API if running for live DAST alerts."""
+        if not settings.ZAP_API_URL:
+            return {"status": "skipped", "reason": "No ZAP_API_URL configured"}
+
+        try:
+            import httpx
+            base = settings.ZAP_API_URL.rstrip("/")
+            api_key = settings.ZAP_API_KEY
+            version_url = f"{base}/JSON/core/view/version/?apikey={api_key}"
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                v_resp = await client.get(version_url)
+                if v_resp.status_code == 200:
+                    alerts_url = f"{base}/JSON/alert/view/alerts/?apikey={api_key}&baseurl={url}&count=10"
+                    a_resp = await client.get(alerts_url)
+                    if a_resp.status_code == 200:
+                        alerts = a_resp.json().get("alerts", [])
+                        return {"status": "connected", "zap_version": v_resp.json().get("version"), "alerts_count": len(alerts), "alerts": alerts}
+                    return {"status": "connected", "zap_version": v_resp.json().get("version"), "alerts_count": 0}
+        except Exception:
+            pass
+
+        return {"status": "offline", "reason": "ZAP daemon container not reachable on port 8080"}
