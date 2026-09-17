@@ -1,0 +1,124 @@
+name: scanzero
+
+services:
+  # ============ DATABASES ============
+  postgres:
+    image: postgres:16-alpine
+    container_name: scanzero-db
+    environment:
+      POSTGRES_USER: scanzero
+      POSTGRES_PASSWORD: scanzero
+      POSTGRES_DB: scanzero
+    ports:
+      - "5432:5432"
+    volumes:
+      - scanzero_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scanzero"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: scanzero-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============ BACKEND ============
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scanzero-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scanzero:scanzero@postgres:5432/scanzero
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ============ CELERY WORKER ============
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scanzero-celery
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scanzero:scanzero@postgres:5432/scanzero
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.celery_worker.celery_app worker --loglevel=info --concurrency=4
+
+  # ============ CELERY BEAT (Scheduler) ============
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scanzero-beat
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scanzero:scanzero@postgres:5432/scanzero
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.celery_worker.celery_app beat --loglevel=info
+
+  # ============ FRONTEND ============
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: scanzero-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # ============ OWASP ZAP (Optional) ============
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:weekly
+    container_name: scanzero-zap
+    ports:
+      - "8080:8080"
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true -config api.key=changeme
+    profiles:
+      - full  # Only starts with: docker compose --profile full up
+
+volumes:
+  scanzero_pgdata:

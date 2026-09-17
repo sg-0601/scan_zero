@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScanZero - Architecture & Master Flowchart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    .mono { font-family: 'Consolas', 'Courier New', monospace; }
+    .glow-cyan { box-shadow: 0 0 30px rgba(6, 182, 212, 0.25); }
+    .glow-rose { box-shadow: 0 0 25px rgba(244, 63, 94, 0.35); }
+    .glow-amber { box-shadow: 0 0 25px rgba(245, 158, 11, 0.35); }
+    .glow-emerald { box-shadow: 0 0 25px rgba(16, 185, 129, 0.35); }
+    .glow-indigo { box-shadow: 0 0 25px rgba(99, 102, 241, 0.35); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8 antialiased">
+
+  <!-- HEADER -->
+  <header class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+    <div>
+      <div class="flex items-center gap-3">
+        <span class="inline-block w-3.5 h-3.5 rounded-full bg-cyan-400 animate-ping"></span>
+        <span class="text-xs font-bold uppercase tracking-widest text-cyan-400 mono">V2 FINAL // ALL 4 GAPS FIXED</span>
+      </div>
+      <h1 class="text-3xl md:text-4xl font-black tracking-tight text-white mt-1">
+        PROJECT <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400">SCANZERO</span>
+      </h1>
+      <p class="text-slate-400 text-sm mt-1">World's #1 1-Click URL Cyber Posture, OSINT & Deception Intelligence Engine</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <button onclick="downloadSVG()" class="px-5 py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all shadow-lg active:scale-95">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Download SVG
+      </button>
+      <button onclick="window.print()" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-2 border border-slate-700 transition-all">
+        Print / PDF
+      </button>
+    </div>
+  </header>
+
+  <!-- GAP FIXES BANNER -->
+  <div class="max-w-7xl mx-auto mb-6 bg-gradient-to-r from-emerald-950/60 to-slate-900 border-2 border-emerald-500/40 rounded-2xl p-5 shadow-xl">
+    <div class="flex items-center gap-2 mb-3 border-b border-slate-800 pb-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+      <span class="text-emerald-400 font-black text-sm uppercase tracking-wider mono">V2 CHANGELOG: ALL 4 CRITICAL GAPS RESOLVED</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="bg-slate-900/80 border border-emerald-600/40 rounded-xl p-3">
+        <div class="text-xs text-emerald-400 font-bold mono uppercase">Gap 1 Fixed</div>
+        <div class="text-sm font-bold text-white mt-1">Continuous Watch Loop</div>
+        <p class="text-xs text-slate-400 mt-1">Login-gated. Owner permission. Hourly/daily re-scans. Score-drop webhook alerts.</p>
+      </div>
+      <div class="bg-slate-900/80 border border-emerald-600/40 rounded-xl p-3">
+        <div class="text-xs text-emerald-400 font-bold mono uppercase">Gap 2 Fixed</div>
+        <div class="text-sm font-bold text-white mt-1">Redis Cache Layer</div>
+        <p class="text-xs text-slate-400 mt-1">6-24hr result cache. Prevents API abuse. "Force Fresh Scan" option available.</p>
+      </div>
+      <div class="bg-slate-900/80 border border-emerald-600/40 rounded-xl p-3">
+        <div class="text-xs text-emerald-400 font-bold mono uppercase">Gap 3 Fixed</div>
+        <div class="text-sm font-bold text-white mt-1">Stage Numbering</div>
+        <p class="text-xs text-slate-400 mt-1">All 9 stages numbered consistently from Ingestion to Continuous Watch.</p>
+      </div>
+      <div class="bg-slate-900/80 border border-emerald-600/40 rounded-xl p-3">
+        <div class="text-xs text-emerald-400 font-bold mono uppercase">Gap 4 Fixed</div>
+        <div class="text-sm font-bold text-white mt-1">Graceful Degradation</div>
+        <p class="text-xs text-slate-400 mt-1">Timeout/error fallback. Partial reports. Failed modules flagged as "Retry Later".</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- HIGHLIGHT CARDS -->
+  <div class="max-w-7xl mx-auto mb-6 bg-slate-900/80 border border-cyan-500/30 rounded-2xl p-5">
+    <div class="flex items-center gap-2 mb-3 border-b border-slate-800 pb-2">
+      <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+      <span class="text-rose-400 font-black text-sm uppercase tracking-wider mono">HIGHLIGHTED TOOLS IN FLOWCHART</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-rose-950/40 border border-rose-500/50 rounded-xl p-4 glow-rose">
+        <span class="text-xs uppercase font-bold text-rose-400 mono">Worker 1</span>
+        <div class="text-lg font-black text-rose-300 mt-1">Dark Web & Breach Intel</div>
+        <p class="text-xs text-slate-300 mt-1"><strong class="text-white">DeHashed, HIBP & IntelX:</strong> Leaked credentials & combo-lists.</p>
+      </div>
+      <div class="bg-teal-950/40 border border-teal-500/50 rounded-xl p-4 glow-emerald">
+        <span class="text-xs uppercase font-bold text-teal-400 mono">Worker 2</span>
+        <div class="text-lg font-black text-teal-300 mt-1">Wireshark (tshark CLI)</div>
+        <p class="text-xs text-slate-300 mt-1"><strong class="text-white">Packet Capture:</strong> Cleartext HTTP leaks & TCP handshake analysis.</p>
+      </div>
+      <div class="bg-amber-950/40 border border-amber-500/50 rounded-xl p-4 glow-amber">
+        <span class="text-xs uppercase font-bold text-amber-400 mono">Worker 5</span>
+        <div class="text-lg font-black text-amber-300 mt-1">OWASP ZAP (Daemon API)</div>
+        <p class="text-xs text-slate-300 mt-1"><strong class="text-white">Active DAST:</strong> XSS, SQLi, CSRF probing via headless spider.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MASTER SVG FLOWCHART -->
+  <div class="max-w-7xl mx-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-4 md:p-6 overflow-x-auto shadow-2xl glow-cyan mb-12">
+    <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+        <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+        <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+        <span class="text-xs mono text-slate-400 ml-2">scanzero_architecture.svg</span>
+      </div>
+      <span class="text-xs text-cyan-400 mono font-bold">V2 FINAL // 9 STAGES // PRODUCTION READY</span>
+    </div>
+
+    <div id="svgContainer" class="w-full flex justify-center py-2">
+      <svg id="masterSVG" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2350" class="w-full max-w-[1150px] h-auto">
+        <defs>
+          <filter id="ds" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.55"/>
+          </filter>
+          <filter id="nR" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#f43f5e" flood-opacity="0.7"/>
+          </filter>
+          <filter id="nT" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#14b8a6" flood-opacity="0.7"/>
+          </filter>
+          <filter id="nA" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#f59e0b" flood-opacity="0.7"/>
+          </filter>
+          <filter id="nG" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#22c55e" flood-opacity="0.7"/>
+          </filter>
+          <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+          </marker>
+        </defs>
+
+        <!-- TITLE -->
+        <text x="600" y="30" text-anchor="middle" fill="#38bdf8" font-size="20" font-weight="900" letter-spacing="2">PROJECT SCANZERO // ALL GAPS FIXED</text>
+        <text x="600" y="52" text-anchor="middle" fill="#94a3b8" font-size="12">World's #1 1-Click URL Scanner &mdash; 9 Stages &mdash; Continuous Monitoring &mdash; Graceful Degradation</text>
+
+        <!-- ==================== STAGE 1: URL INGESTION ==================== -->
+        <rect x="360" y="72" width="480" height="62" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="97" text-anchor="middle" fill="#38bdf8" font-size="13" font-weight="700">STAGE 1: 1-CLICK URL INGESTION</text>
+        <text x="600" y="118" text-anchor="middle" fill="#94a3b8" font-size="11">Target URL or up to 5 Competitor URLs &bull; Zero Signup Required for Single Scan</text>
+        <line x1="600" y1="134" x2="600" y2="160" stroke="#06b6d4" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- ==================== STAGE 2: STEALTH GATEWAY ==================== -->
+        <rect x="330" y="165" width="540" height="78" rx="12" fill="#0f172a" stroke="#3b82f6" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="192" text-anchor="middle" fill="#60a5fa" font-size="13" font-weight="700">STAGE 2: FASTAPI GATEWAY &amp; STEALTH ROTATION</text>
+        <text x="600" y="212" text-anchor="middle" fill="#cbd5e1" font-size="11">WAFW00F (Cloudflare/AWS WAF/Akamai Detection) &bull; Fireprox IP Rotation</text>
+        <text x="600" y="230" text-anchor="middle" fill="#94a3b8" font-size="10">URL Normalizer &bull; Hostname Extractor &bull; Protocol Validator</text>
+        <line x1="600" y1="243" x2="600" y2="268" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- ==================== STAGE 3: CACHE CHECK (GAP 2 FIX) ==================== -->
+        <rect x="55" y="250" width="130" height="22" rx="5" fill="#16a34a" stroke="#fff" stroke-width="1" filter="url(#nG)"/>
+        <text x="120" y="265" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="900">GAP 2 FIX: CACHE</text>
+
+        <polygon points="600,273 740,320 600,367 460,320" fill="#0c4a6e" stroke="#0ea5e9" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="314" text-anchor="middle" fill="#e0f2fe" font-size="12" font-weight="700">STAGE 3: REDIS CACHE HIT?</text>
+        <text x="600" y="332" text-anchor="middle" fill="#7dd3fc" font-size="10">Domain scanned in last 6-24 hours?</text>
+
+        <!-- YES: Serve cached -->
+        <line x1="740" y1="320" x2="920" y2="320" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="810" y="312" fill="#22c55e" font-size="10" font-weight="700">YES (Cached)</text>
+        <rect x="925" y="296" width="220" height="50" rx="8" fill="#064e3b" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="1035" y="316" text-anchor="middle" fill="#86efac" font-size="10.5" font-weight="700">Serve Cached Report Instantly</text>
+        <text x="1035" y="332" text-anchor="middle" fill="#94a3b8" font-size="9.5">"Force Fresh Scan" button available</text>
+
+        <!-- NO: Fresh scan -->
+        <line x1="600" y1="367" x2="600" y2="397" stroke="#f97316" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="618" y="387" fill="#f97316" font-size="10" font-weight="700">NO &rarr; Fresh Scan</text>
+
+        <!-- ==================== STAGE 4: ASYNC DISPATCHER ==================== -->
+        <rect x="420" y="402" width="360" height="42" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+        <text x="600" y="428" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="600">STAGE 4: RabbitMQ / Redis Async Dispatcher</text>
+
+        <!-- BUS CONNECTORS TO 6 WORKERS -->
+        <path d="M 600 444 L 600 468 L 120 468 L 120 498" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 600 468 L 315 468 L 315 498" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 600 468 L 505 468 L 505 498" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 600 468 L 690 468 L 690 498" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 600 468 L 882 468 L 882 498" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 600 468 L 1080 468 L 1080 498" fill="none" stroke="#64748b" stroke-width="1.5"/>
+
+        <!-- ==================== STAGE 5: 6 PARALLEL WORKERS ==================== -->
+        <text x="600" y="494" text-anchor="middle" fill="#64748b" font-size="10" font-weight="700">STAGE 5: PARALLEL PROBE FLEET (Sub-5 Seconds)</text>
+
+        <!-- Worker 1: OSINT + DARK WEB -->
+        <rect x="25" y="500" width="190" height="218" rx="10" fill="#130718" stroke="#f43f5e" stroke-width="2.2" filter="url(#ds)"/>
+        <rect x="40" y="484" width="160" height="22" rx="5" fill="#e11d48" stroke="#fff" stroke-width="1" filter="url(#nR)"/>
+        <text x="120" y="499" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="900">&#9733; DARK WEB OSINT</text>
+        <text x="120" y="525" text-anchor="middle" fill="#fb7185" font-size="11" font-weight="800">W1: OSINT FLEET</text>
+        <line x1="40" y1="533" x2="200" y2="533" stroke="#f43f5e" stroke-width="0.8"/>
+        <rect x="33" y="539" width="174" height="20" rx="3" fill="#881337"/>
+        <text x="120" y="553" text-anchor="middle" fill="#ffe4e6" font-size="9.5" font-weight="800">&#9679; DarkWeb (DeHashed/HIBP)</text>
+        <text x="40" y="574" fill="#cbd5e1" font-size="9.5">&bull; Subfinder &amp; crt.sh</text>
+        <text x="40" y="592" fill="#cbd5e1" font-size="9.5">&bull; Shodan &amp; Censys Ports</text>
+        <text x="40" y="610" fill="#cbd5e1" font-size="9.5">&bull; GitHub API Leaked Keys</text>
+        <text x="40" y="628" fill="#cbd5e1" font-size="9.5">&bull; TheHarvester Emails</text>
+        <text x="40" y="646" fill="#cbd5e1" font-size="9.5">&bull; Aquatone Visual Snaps</text>
+        <text x="120" y="670" text-anchor="middle" fill="#fb7185" font-size="9" font-weight="700">[Target Footprint]</text>
+
+        <!-- Worker 2: WIRESHARK + TLS -->
+        <rect x="220" y="500" width="190" height="218" rx="10" fill="#041b18" stroke="#14b8a6" stroke-width="2.2" filter="url(#ds)"/>
+        <rect x="235" y="484" width="160" height="22" rx="5" fill="#0d9488" stroke="#fff" stroke-width="1" filter="url(#nT)"/>
+        <text x="315" y="499" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="900">&#9733; WIRESHARK (TSHARK)</text>
+        <text x="315" y="525" text-anchor="middle" fill="#2dd4bf" font-size="11" font-weight="800">W2: PACKETS / TLS</text>
+        <line x1="235" y1="533" x2="395" y2="533" stroke="#14b8a6" stroke-width="0.8"/>
+        <rect x="228" y="539" width="174" height="20" rx="3" fill="#134e4a"/>
+        <text x="315" y="553" text-anchor="middle" fill="#ccfbf1" font-size="9.5" font-weight="800">&#9679; tshark Packet Daemon</text>
+        <text x="235" y="574" fill="#cbd5e1" font-size="9.5">&bull; Raw Packet Sniffing</text>
+        <text x="235" y="592" fill="#cbd5e1" font-size="9.5">&bull; Cleartext HTTP Leaks</text>
+        <text x="235" y="610" fill="#cbd5e1" font-size="9.5">&bull; TLS 1.0-1.3 Engine</text>
+        <text x="235" y="628" fill="#cbd5e1" font-size="9.5">&bull; Cipher Suite &amp; PFS</text>
+        <text x="235" y="646" fill="#cbd5e1" font-size="9.5">&bull; Cert Expiry &amp; CAA</text>
+        <text x="315" y="670" text-anchor="middle" fill="#2dd4bf" font-size="9" font-weight="700">[Network &amp; Crypto]</text>
+
+        <!-- Worker 3: HTTP HEADERS -->
+        <rect x="415" y="500" width="180" height="218" rx="10" fill="#091424" stroke="#059669" stroke-width="1.5" filter="url(#ds)"/>
+        <text x="505" y="525" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">W3: HTTP &amp; CSP</text>
+        <line x1="430" y1="533" x2="580" y2="533" stroke="#059669" stroke-width="0.8"/>
+        <text x="430" y="553" fill="#94a3b8" font-size="9.5">&bull; CSP AST Parser</text>
+        <text x="430" y="571" fill="#94a3b8" font-size="9.5">&bull; HSTS Preload Check</text>
+        <text x="430" y="589" fill="#94a3b8" font-size="9.5">&bull; X-Frame &amp; MIME</text>
+        <text x="430" y="607" fill="#94a3b8" font-size="9.5">&bull; Cookie Flags (__Host-)</text>
+        <text x="430" y="625" fill="#94a3b8" font-size="9.5">&bull; COOP / CORP Audit</text>
+        <text x="430" y="643" fill="#94a3b8" font-size="9.5">&bull; Referrer-Policy</text>
+        <text x="505" y="670" text-anchor="middle" fill="#34d399" font-size="9">[Header Shielding]</text>
+
+        <!-- Worker 4: DNS EMAIL -->
+        <rect x="600" y="500" width="180" height="218" rx="10" fill="#091424" stroke="#4f46e5" stroke-width="1.5" filter="url(#ds)"/>
+        <text x="690" y="525" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">W4: EMAIL / DNS</text>
+        <line x1="615" y1="533" x2="765" y2="533" stroke="#4f46e5" stroke-width="0.8"/>
+        <text x="615" y="553" fill="#94a3b8" font-size="9.5">&bull; SPF (v=spf1) Syntax</text>
+        <text x="615" y="571" fill="#94a3b8" font-size="9.5">&bull; 10-Lookup Limit</text>
+        <text x="615" y="589" fill="#94a3b8" font-size="9.5">&bull; DMARC (p=reject)</text>
+        <text x="615" y="607" fill="#94a3b8" font-size="9.5">&bull; DKIM &amp; BIMI Audit</text>
+        <text x="615" y="625" fill="#94a3b8" font-size="9.5">&bull; DNSSEC Crypto</text>
+        <text x="615" y="643" fill="#94a3b8" font-size="9.5">&bull; MX &amp; SOA Integrity</text>
+        <text x="690" y="670" text-anchor="middle" fill="#818cf8" font-size="9">[Anti-Phishing]</text>
+
+        <!-- Worker 5: OWASP ZAP -->
+        <rect x="785" y="500" width="195" height="218" rx="10" fill="#1c1305" stroke="#f59e0b" stroke-width="2.2" filter="url(#ds)"/>
+        <rect x="802" y="484" width="160" height="22" rx="5" fill="#d97706" stroke="#fff" stroke-width="1" filter="url(#nA)"/>
+        <text x="882" y="499" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="900">&#9733; OWASP ZAP DAST</text>
+        <text x="882" y="525" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="800">W5: ZAP / CVE</text>
+        <line x1="800" y1="533" x2="965" y2="533" stroke="#f59e0b" stroke-width="0.8"/>
+        <rect x="792" y="539" width="181" height="20" rx="3" fill="#78350f"/>
+        <text x="882" y="553" text-anchor="middle" fill="#fef3c7" font-size="9.5" font-weight="800">&#9679; ZAP Headless Daemon</text>
+        <text x="800" y="574" fill="#cbd5e1" font-size="9.5">&bull; Nuclei CVE Templates</text>
+        <text x="800" y="592" fill="#cbd5e1" font-size="9.5">&bull; Katana (Playwright JS)</text>
+        <text x="800" y="610" fill="#cbd5e1" font-size="9.5">&bull; Kiterunner API Maps</text>
+        <text x="800" y="628" fill="#cbd5e1" font-size="9.5">&bull; Wappalyzer Fingerprint</text>
+        <text x="800" y="646" fill="#cbd5e1" font-size="9.5">&bull; Retire.js Library Check</text>
+        <text x="882" y="670" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="700">[Targeted DAST]</text>
+
+        <!-- Worker 6: DECEPTION -->
+        <rect x="985" y="500" width="190" height="218" rx="10" fill="#180c2e" stroke="#c084fc" stroke-width="1.5" filter="url(#ds)"/>
+        <text x="1080" y="525" text-anchor="middle" fill="#e879f9" font-size="11" font-weight="700">W6: DECEPTION</text>
+        <line x1="1000" y1="533" x2="1160" y2="533" stroke="#c084fc" stroke-width="0.8"/>
+        <text x="1000" y="553" fill="#cbd5e1" font-size="9.5">&bull; Tarpit Latency Probe</text>
+        <text x="1000" y="571" fill="#cbd5e1" font-size="9.5">&bull; Random URI Canaries</text>
+        <text x="1000" y="589" fill="#cbd5e1" font-size="9.5">&bull; Uniform Catch-All 200</text>
+        <text x="1000" y="607" fill="#cbd5e1" font-size="9.5">&bull; Cowrie/Dionaea Tags</text>
+        <text x="1000" y="625" fill="#cbd5e1" font-size="9.5">&bull; Shodan Honeyscore</text>
+        <text x="1000" y="643" fill="#cbd5e1" font-size="9.5">&bull; Canary Token Catch</text>
+        <text x="1080" y="670" text-anchor="middle" fill="#e879f9" font-size="9">[Honeypot Guard]</text>
+
+        <!-- RECONVERGENCE BUS -->
+        <path d="M 120 718 L 120 750 L 600 750" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 315 718 L 315 750" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 505 718 L 505 750" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 690 718 L 690 750" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 882 718 L 882 750" fill="none" stroke="#64748b" stroke-width="1.5"/>
+        <path d="M 1080 718 L 1080 750 L 600 750" fill="none" stroke="#64748b" stroke-width="1.5"/>
+
+        <!-- ==================== STAGE 5.5: ERROR HANDLING (GAP 4 FIX) ==================== -->
+        <rect x="55" y="755" width="170" height="22" rx="5" fill="#16a34a" stroke="#fff" stroke-width="1" filter="url(#nG)"/>
+        <text x="140" y="770" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="900">GAP 4 FIX: DEGRADATION</text>
+
+        <polygon points="600,760 760,810 600,860 440,810" fill="#1e1b4b" stroke="#f97316" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="804" text-anchor="middle" fill="#fed7aa" font-size="12" font-weight="700">Any Worker Timeout / Error?</text>
+        <text x="600" y="822" text-anchor="middle" fill="#94a3b8" font-size="10">Shodan API down? ZAP hung? DNS unreachable?</text>
+
+        <!-- YES: Graceful Degradation -->
+        <line x1="760" y1="810" x2="940" y2="810" stroke="#f97316" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="830" y="800" fill="#f97316" font-size="9.5" font-weight="700">YES: Partial</text>
+        <rect x="945" y="785" width="220" height="50" rx="8" fill="#431407" stroke="#f97316" stroke-width="1.5"/>
+        <text x="1055" y="805" text-anchor="middle" fill="#fdba74" font-size="10" font-weight="700">GRACEFUL DEGRADATION</text>
+        <text x="1055" y="820" text-anchor="middle" fill="#cbd5e1" font-size="9">Continue with available data</text>
+        <text x="1055" y="832" text-anchor="middle" fill="#94a3b8" font-size="8.5">Flag failed module: "Retry Later"</text>
+
+        <!-- NO: All succeeded -->
+        <line x1="600" y1="860" x2="600" y2="890" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="618" y="880" fill="#38bdf8" font-size="10" font-weight="700">All OK</text>
+
+        <!-- ==================== STAGE 6: HONEYPOT GATE ==================== -->
+        <polygon points="600,895 760,950 600,1005 440,950" fill="#1e1b4b" stroke="#818cf8" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="940" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="700">STAGE 6: HONEYPOT DETECTED?</text>
+        <text x="600" y="958" text-anchor="middle" fill="#94a3b8" font-size="10">Tarpit + Catch-All + Shodan Honeyscore</text>
+
+        <line x1="760" y1="950" x2="940" y2="950" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="830" y="940" fill="#a855f7" font-size="9.5" font-weight="700">YES: Trap</text>
+        <rect x="945" y="925" width="210" height="50" rx="8" fill="#2e1065" stroke="#c084fc" stroke-width="1.5"/>
+        <text x="1050" y="945" text-anchor="middle" fill="#f0abfc" font-size="10" font-weight="700">ACTIVE DEFENSE ISOLATION</text>
+        <text x="1050" y="960" text-anchor="middle" fill="#e9d5ff" font-size="9">Classified as Deception Trap</text>
+        <text x="1050" y="972" text-anchor="middle" fill="#34d399" font-size="9">Award +5 Defense Bonus</text>
+
+        <line x1="600" y1="1005" x2="600" y2="1035" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="618" y="1025" fill="#38bdf8" font-size="10" font-weight="700">NO: Valid</text>
+
+        <!-- ==================== STAGE 7: AI ACCURACY GUARD ==================== -->
+        <rect x="250" y="1040" width="700" height="140" rx="14" fill="#0f172a" stroke="#10b981" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="1068" text-anchor="middle" fill="#34d399" font-size="14" font-weight="800">STAGE 7: AI ACCURACY GUARD (0% FALSE POSITIVES)</text>
+
+        <rect x="270" y="1085" width="200" height="78" rx="8" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+        <text x="370" y="1106" text-anchor="middle" fill="#6ee7b7" font-size="10.5" font-weight="700">1. LLM Payload Verifier</text>
+        <text x="370" y="1122" text-anchor="middle" fill="#cbd5e1" font-size="9">Inspects raw HTTP req/resp</text>
+        <text x="370" y="1137" text-anchor="middle" fill="#cbd5e1" font-size="9">Flags genuine SQL/RCE bugs</text>
+        <text x="370" y="1152" text-anchor="middle" fill="#94a3b8" font-size="8.5">Discards fake 404/500 errors</text>
+
+        <rect x="490" y="1085" width="200" height="78" rx="8" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+        <text x="590" y="1106" text-anchor="middle" fill="#6ee7b7" font-size="10.5" font-weight="700">2. EPSS Exploit Gate</text>
+        <text x="590" y="1122" text-anchor="middle" fill="#cbd5e1" font-size="9">EPSS Probability (0.0-1.0)</text>
+        <text x="590" y="1137" text-anchor="middle" fill="#cbd5e1" font-size="9">CISA KEV Wild-Exploit check</text>
+        <text x="590" y="1152" text-anchor="middle" fill="#94a3b8" font-size="8.5">Filters theoretical CVE noise</text>
+
+        <rect x="710" y="1085" width="220" height="78" rx="8" fill="#064e3b" stroke="#059669" stroke-width="1"/>
+        <text x="820" y="1106" text-anchor="middle" fill="#6ee7b7" font-size="10.5" font-weight="700">3. Kill-Chain Synthesizer</text>
+        <text x="820" y="1122" text-anchor="middle" fill="#cbd5e1" font-size="9">Neo4j Graph Correlation</text>
+        <text x="820" y="1137" text-anchor="middle" fill="#cbd5e1" font-size="9">Chains: Subdomain &rarr; Port</text>
+        <text x="820" y="1152" text-anchor="middle" fill="#94a3b8" font-size="8.5">&rarr; CVE &rarr; Business Impact</text>
+
+        <line x1="600" y1="1180" x2="600" y2="1210" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- ==================== STAGE 8A: SCORING ==================== -->
+        <rect x="300" y="1215" width="600" height="90" rx="12" fill="#0f172a" stroke="#eab308" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="1240" text-anchor="middle" fill="#fde047" font-size="14" font-weight="800">STAGE 8A: SCORING &amp; N-SITE COMPETITOR MATRIX</text>
+        <text x="600" y="1262" text-anchor="middle" fill="#cbd5e1" font-size="11">Weighted Formula: (Crypto 25%) + (Headers 30%) + (DNS 20%) + (Surface 25%)</text>
+        <text x="600" y="1280" text-anchor="middle" fill="#94a3b8" font-size="10.5">Grade: A+, A, B, C, D, F &bull; Normalizes N competitor domains &bull; Stores to PostgreSQL</text>
+        <line x1="600" y1="1305" x2="600" y2="1335" stroke="#eab308" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- ==================== STAGE 8B: SHIELD REMEDIATION ==================== -->
+        <rect x="260" y="1340" width="680" height="90" rx="12" fill="#0f172a" stroke="#f97316" stroke-width="2" filter="url(#ds)"/>
+        <text x="600" y="1365" text-anchor="middle" fill="#fb923c" font-size="14" font-weight="800">STAGE 8B: "FORGE YOUR SHIELD" REMEDIATION ENGINE</text>
+        <text x="600" y="1387" text-anchor="middle" fill="#cbd5e1" font-size="11">1-Click Drop-in Nginx / Apache Configs &bull; Cloudflare WAF JSON Rules</text>
+        <text x="600" y="1405" text-anchor="middle" fill="#94a3b8" font-size="10.5">AWS WAF Terraform IaC &bull; DNS Records: SPF -all, DMARC p=reject, CAA</text>
+        <line x1="600" y1="1430" x2="600" y2="1460" stroke="#f97316" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- ==================== STAGE 8C: DASHBOARD ==================== -->
+        <rect x="150" y="1465" width="900" height="210" rx="16" fill="#091424" stroke="#06b6d4" stroke-width="2.5" filter="url(#ds)"/>
+        <text x="600" y="1492" text-anchor="middle" fill="#38bdf8" font-size="15" font-weight="900">STAGE 8C: GAMIFIED COMMAND CENTER (NEXT.JS + D3.JS)</text>
+
+        <rect x="180" y="1510" width="185" height="138" rx="10" fill="#0f172a" stroke="#0284c7" stroke-width="1.5"/>
+        <text x="272" y="1535" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">1. HEALING SHIELD</text>
+        <circle cx="272" cy="1575" r="26" fill="none" stroke="#06b6d4" stroke-width="5" stroke-dasharray="120, 45"/>
+        <text x="272" y="1581" text-anchor="middle" fill="#fff" font-size="13" font-weight="800">84%</text>
+        <text x="272" y="1630" text-anchor="middle" fill="#94a3b8" font-size="9">Repairs &amp; glows as fixes apply</text>
+
+        <rect x="385" y="1510" width="185" height="138" rx="10" fill="#0f172a" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="477" y="1535" text-anchor="middle" fill="#a78bfa" font-size="11" font-weight="700">2. N-SITE RADAR</text>
+        <polygon points="477,1555 510,1580 500,1608 455,1608 445,1580" fill="#8b5cf6" fill-opacity="0.25" stroke="#a78bfa" stroke-width="1.2"/>
+        <text x="477" y="1630" text-anchor="middle" fill="#94a3b8" font-size="9">Spider-web: Target vs Rivals</text>
+
+        <rect x="590" y="1510" width="185" height="138" rx="10" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+        <text x="682" y="1535" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">3. KILL-CHAIN GRAPH</text>
+        <circle cx="635" cy="1580" r="7" fill="#f43f5e"/>
+        <line x1="642" y1="1580" x2="672" y2="1580" stroke="#64748b" stroke-width="1.5"/>
+        <circle cx="679" cy="1580" r="7" fill="#fbbf24"/>
+        <line x1="686" y1="1580" x2="716" y2="1580" stroke="#64748b" stroke-width="1.5"/>
+        <circle cx="723" cy="1580" r="7" fill="#10b981"/>
+        <text x="682" y="1630" text-anchor="middle" fill="#94a3b8" font-size="9">D3.js: Breakable attack links</text>
+
+        <rect x="795" y="1510" width="225" height="138" rx="10" fill="#0f172a" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="907" y="1535" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">4. EXPORT &amp; ALERTS</text>
+        <text x="907" y="1565" text-anchor="middle" fill="#cbd5e1" font-size="10">Executive CISO PDF</text>
+        <text x="907" y="1583" text-anchor="middle" fill="#cbd5e1" font-size="10">Raw Developer JSON</text>
+        <text x="907" y="1601" text-anchor="middle" fill="#cbd5e1" font-size="10">GRC SOC2 / ISO Mapping</text>
+        <text x="907" y="1630" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="700">[Download Ready]</text>
+
+        <!-- COMPLETED BADGE -->
+        <rect x="460" y="1700" width="280" height="36" rx="18" fill="#064e3b" stroke="#10b981" stroke-width="2"/>
+        <text x="600" y="1723" text-anchor="middle" fill="#a7f3d0" font-size="11" font-weight="800">&check; SINGLE SCAN COMPLETE &lt; 10s</text>
+        <line x1="600" y1="1736" x2="600" y2="1770" stroke="#06b6d4" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- ==================== STAGE 9: CONTINUOUS WATCH (GAP 1 FIX) ==================== -->
+        <rect x="55" y="1760" width="200" height="22" rx="5" fill="#16a34a" stroke="#fff" stroke-width="1" filter="url(#nG)"/>
+        <text x="155" y="1775" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="900">GAP 1 FIX: CONTINUOUS WATCH</text>
+
+        <rect x="130" y="1780" width="940" height="320" rx="18" fill="#0c1222" stroke="#6366f1" stroke-width="2.5" filter="url(#ds)"/>
+        <text x="600" y="1810" text-anchor="middle" fill="#a5b4fc" font-size="16" font-weight="900">STAGE 9: CONTINUOUS WATCH &amp; ALERT ENGINE</text>
+        <text x="600" y="1830" text-anchor="middle" fill="#94a3b8" font-size="11">Login Required &bull; Site Owner Verification (DNS TXT or Meta Tag) &bull; Recurring Scans</text>
+
+        <!-- Sub-block: Auth & Permission -->
+        <rect x="160" y="1848" width="260" height="110" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="290" y="1872" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="700">A. USER AUTH &amp; PERMISSIONS</text>
+        <line x1="175" y1="1880" x2="405" y2="1880" stroke="#4f46e5" stroke-width="0.8"/>
+        <text x="175" y="1898" fill="#e0e7ff" font-size="9.5">&bull; Email/OAuth Login (JWT Session)</text>
+        <text x="175" y="1916" fill="#e0e7ff" font-size="9.5">&bull; Domain Ownership Proof:</text>
+        <text x="185" y="1932" fill="#c7d2fe" font-size="9">DNS TXT Record or HTML Meta Tag</text>
+        <text x="175" y="1948" fill="#e0e7ff" font-size="9.5">&bull; Only verified owners can enable</text>
+        <text x="185" y="1960" fill="#a5b4fc" font-size="9" font-weight="700">recurring scans on their domain</text>
+
+        <!-- Sub-block: Scheduler -->
+        <rect x="440" y="1848" width="260" height="110" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="570" y="1872" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="700">B. CRON SCHEDULER</text>
+        <line x1="455" y1="1880" x2="685" y2="1880" stroke="#4f46e5" stroke-width="0.8"/>
+        <text x="455" y="1898" fill="#e0e7ff" font-size="9.5">&bull; Owner sets frequency:</text>
+        <text x="465" y="1916" fill="#c7d2fe" font-size="9.5">Hourly / 6-Hour / Daily / Weekly</text>
+        <text x="455" y="1936" fill="#e0e7ff" font-size="9.5">&bull; Celery Beat dispatches re-scan</text>
+        <text x="455" y="1954" fill="#e0e7ff" font-size="9.5">&bull; Compares new score vs last score</text>
+        <text x="465" y="1960" fill="#a5b4fc" font-size="0"> </text>
+
+        <!-- Sub-block: Alerts -->
+        <rect x="720" y="1848" width="320" height="110" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="880" y="1872" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="700">C. SCORE-DROP ALERT ENGINE</text>
+        <line x1="735" y1="1880" x2="1025" y2="1880" stroke="#4f46e5" stroke-width="0.8"/>
+        <text x="735" y="1898" fill="#e0e7ff" font-size="9.5">&bull; Triggers when score drops &ge; 5 pts</text>
+        <text x="735" y="1916" fill="#e0e7ff" font-size="9.5">&bull; Triggers on new Critical/High finding</text>
+        <text x="735" y="1936" fill="#e0e7ff" font-size="9.5">&bull; Triggers on SSL cert expiring &lt; 14 days</text>
+        <text x="735" y="1956" fill="#a5b4fc" font-size="9.5" font-weight="700">Delivers via: Email, Slack, Discord,</text>
+        <text x="735" y="1968" fill="#a5b4fc" font-size="0"> </text>
+
+        <!-- Alert Channels Row -->
+        <rect x="220" y="1978" width="100" height="28" rx="6" fill="#1e40af" stroke="#3b82f6" stroke-width="1.2"/>
+        <text x="270" y="1996" text-anchor="middle" fill="#dbeafe" font-size="10" font-weight="700">Email</text>
+
+        <rect x="340" y="1978" width="100" height="28" rx="6" fill="#7c3aed" stroke="#8b5cf6" stroke-width="1.2"/>
+        <text x="390" y="1996" text-anchor="middle" fill="#ede9fe" font-size="10" font-weight="700">Slack</text>
+
+        <rect x="460" y="1978" width="100" height="28" rx="6" fill="#4338ca" stroke="#6366f1" stroke-width="1.2"/>
+        <text x="510" y="1996" text-anchor="middle" fill="#e0e7ff" font-size="10" font-weight="700">Discord</text>
+
+        <rect x="580" y="1978" width="100" height="28" rx="6" fill="#0369a1" stroke="#0ea5e9" stroke-width="1.2"/>
+        <text x="630" y="1996" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="700">MS Teams</text>
+
+        <rect x="700" y="1978" width="120" height="28" rx="6" fill="#065f46" stroke="#10b981" stroke-width="1.2"/>
+        <text x="760" y="1996" text-anchor="middle" fill="#d1fae5" font-size="10" font-weight="700">Custom Webhook</text>
+
+        <rect x="840" y="1978" width="140" height="28" rx="6" fill="#581c87" stroke="#a855f7" stroke-width="1.2"/>
+        <text x="910" y="1996" text-anchor="middle" fill="#f3e8ff" font-size="10" font-weight="700">In-App Dashboard</text>
+
+        <!-- FEEDBACK LOOP ARROW BACK TO STAGE 4 -->
+        <text x="600" y="2040" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Scheduled Re-Scan Loop (Hourly / Daily / Weekly)</text>
+        <path d="M 600 2050 L 600 2070 L 80 2070 L 80 430 L 415 430" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-dasharray="8,4" marker-end="url(#arrow)"/>
+        <text x="80" y="1250" fill="#a5b4fc" font-size="10" font-weight="700" transform="rotate(-90, 80, 1250)">CONTINUOUS MONITORING FEEDBACK LOOP</text>
+
+        <!-- FINAL BADGE -->
+        <rect x="370" y="2098" width="460" height="42" rx="20" fill="#064e3b" stroke="#10b981" stroke-width="2.5"/>
+        <text x="600" y="2124" text-anchor="middle" fill="#a7f3d0" font-size="13" font-weight="900">&check; V2 FINAL: 9 STAGES &bull; ALL GAPS FIXED &bull; PRODUCTION READY</text>
+      </svg>
+    </div>
+  </div>
+
+  <script>
+    function downloadSVG() {
+      const svg = document.getElementById('masterSVG');
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svg);
+      if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+      const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ScanZero_Architecture.svg";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  </script>
+</body>
+</html>
