@@ -5,11 +5,6 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://scanzero:scanzero@localhost:5432/scanzero"
     
     SHODAN_API_KEY: str = ""
-    HIBP_API_KEY: str = ""
-    DEHASHED_API_KEY: str = ""
-    CENSYS_API_TOKEN: str = ""
-    GITHUB_TOKEN: str = ""
-    INTELX_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     ZAP_API_URL: str = ""
     ZAP_API_KEY: str = ""

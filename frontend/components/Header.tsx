@@ -54,9 +54,18 @@ export default function Header() {
             { href: "/dashboard", label: "Monitoring" },
           ].map((item) => (
             item.isAnchor ? (
-              <a key={item.label} href={item.href} className="px-3.5 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 transition-all">
+              <button
+                key={item.label}
+                onClick={() => {
+                  const el = document.getElementById(item.href.replace('#', ''));
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                className="px-3.5 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 transition-all"
+              >
                 {item.label}
-              </a>
+              </button>
             ) : (
               <Link key={item.label} href={item.href} className="px-3.5 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 transition-all">
                 {item.label}
@@ -73,13 +82,18 @@ export default function Header() {
           >
             Sign In
           </Link>
-          <a
-            href="#search-hero"
+          <button
+            onClick={() => {
+              const el = document.getElementById('search-hero');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-semibold text-sm shadow-lg shadow-gray-900/10 hover:shadow-gray-900/20 transition-all active:scale-[0.98]"
           >
             <span>Start Free</span>
             <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          </button>
         </div>
 
         {/* Mobile menu button */}
@@ -97,6 +111,30 @@ export default function Header() {
           <Link href="/" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-100">
             Scanner
           </Link>
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setTimeout(() => {
+                const el = document.getElementById('comparison-preview');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
+            }}
+            className="block w-full text-left text-sm font-medium text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-100"
+          >
+            Compare Sites
+          </button>
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setTimeout(() => {
+                const el = document.getElementById('sets-info');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
+            }}
+            className="block w-full text-left text-sm font-medium text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-100"
+          >
+            6-Set Framework
+          </button>
           <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-100">
             Monitoring
           </Link>

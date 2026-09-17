@@ -564,7 +564,9 @@ export default function Home() {
   // VIEW STATE 1: PRISTINE LANDING / HERO (ZERO CLUTTER UNDERNEATH SEARCH)
   // =========================================================================
   return (
-    <div className="flex-1 flex flex-col items-center justify-center w-full px-4 sm:px-6 py-16 md:py-24 relative overflow-hidden bg-gradient-to-br from-white via-gray-50 to-teal-50/20">
+    <div className="flex-1 flex flex-col">
+      {/* HERO SECTION */}
+      <div id="search-hero" className="flex-1 flex flex-col items-center justify-center w-full px-4 sm:px-6 py-16 md:py-24 relative overflow-hidden bg-gradient-to-br from-white via-gray-50 to-teal-50/20">
       {/* Animated Gradient Mesh Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 -left-48 w-[500px] h-[500px] bg-teal-400/[0.07] rounded-full blur-[100px] animate-gradient-shift" />
@@ -705,6 +707,76 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </div>
+
+    {/* COMPARE SITES SECTION */}
+    <section id="comparison-preview" className="w-full py-20 px-4 sm:px-6 bg-white border-t border-gray-100">
+      <div className="max-w-5xl mx-auto text-center space-y-10">
+        <div className="space-y-4">
+          <span className="text-xs font-mono uppercase tracking-widest text-teal-600 font-bold px-3 py-1 rounded-full bg-teal-50 border border-teal-200">Multi-Site Intelligence</span>
+          <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">Compare Any Two Websites Side-by-Side</h2>
+          <p className="text-gray-500 max-w-2xl mx-auto">Enter your site and a competitor. ScanZero runs the same 55-tool audit on both, then shows a transparent head-to-head breakdown across all 6 security dimensions.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center text-teal-600"><Shield className="w-5 h-5" /></div>
+            <h3 className="font-bold text-gray-900">Radar Overlay Chart</h3>
+            <p className="text-sm text-gray-500">See both sites plotted on the same 6-axis radar so you can instantly spot where you lead — and where you trail.</p>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-cyan-600"><Activity className="w-5 h-5" /></div>
+            <h3 className="font-bold text-gray-900">Performance Curve</h3>
+            <p className="text-sm text-gray-500">An area chart traces each site's score across Set 1–6, revealing strengths and drop-offs at a glance.</p>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600"><Sparkles className="w-5 h-5" /></div>
+            <h3 className="font-bold text-gray-900">AI-Generated Insight</h3>
+            <p className="text-sm text-gray-500">ScanZero explains <em>why</em> the scores differ — missing headers, weaker DNS policy, or exposed ports — in plain English.</p>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            const el = document.getElementById('search-hero');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-sm shadow-lg transition-all active:scale-[0.98]"
+        >
+          <span>Try Compare Now</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    </section>
+
+    {/* 6-SET FRAMEWORK SECTION */}
+    <section id="sets-info" className="w-full py-20 px-4 sm:px-6 bg-gradient-to-b from-gray-50 to-white border-t border-gray-100">
+      <div className="max-w-5xl mx-auto text-center space-y-10">
+        <div className="space-y-4">
+          <span className="text-xs font-mono uppercase tracking-widest text-purple-600 font-bold px-3 py-1 rounded-full bg-purple-50 border border-purple-200">Scoring Methodology</span>
+          <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">The 6-Set Security Framework</h2>
+          <p className="text-gray-500 max-w-2xl mx-auto">Every website is evaluated across six independent security dimensions. Each set is scored 0–100 and weighted to produce a single overall grade.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 text-left">
+          {[
+            { num: "1", title: "Network & TLS Encryption", desc: "TLS protocol version, cipher strength, certificate validity, and HTTPS redirect enforcement.", color: "teal" },
+            { num: "2", title: "HTTP Security Headers", desc: "Content-Security-Policy, HSTS preload, X-Frame-Options, Referrer-Policy, and cookie flags.", color: "cyan" },
+            { num: "3", title: "DNS & Anti-Spoofing", desc: "SPF record syntax, DMARC rejection policy, MX server validation, and DNSSEC authentication.", color: "emerald" },
+            { num: "4", title: "Attack Surface & OSINT", desc: "Subdomain enumeration via CT logs, open ports, known CVEs, and cloud asset exposure.", color: "amber" },
+            { num: "5", title: "DAST & Vulnerabilities", desc: "Sensitive file exposure (.env, .git), diagnostic endpoints, and web server fingerprints.", color: "rose" },
+            { num: "6", title: "Deception & Honeypot", desc: "Canary URI probes, tarpit latency analysis, and honeypot signature detection.", color: "purple" },
+          ].map((set) => (
+            <div key={set.num} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 hover:border-gray-300 hover:shadow-sm transition-all">
+              <div className="flex items-center gap-3">
+                <span className={`w-8 h-8 rounded-lg bg-${set.color}-100 text-${set.color}-600 flex items-center justify-center text-sm font-black`}>{set.num}</span>
+                <h3 className="font-bold text-gray-900 text-sm">Set {set.num}: {set.title}</h3>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed">{set.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 max-w-2xl mx-auto">
+          <p className="text-xs font-mono text-gray-600"><span className="text-teal-600 font-bold">Weighted Formula:</span> (Set1 × 0.25) + (Set2 × 0.30) + (Set3 × 0.20) + (Set4 × 0.15) + (Set5 × 0.05) + (Set6 × 0.05) = <span className="font-bold text-gray-900">Overall Score /100</span></p>
+        </div>
+      </div>
+    </section>
+  </div>
   );
 }

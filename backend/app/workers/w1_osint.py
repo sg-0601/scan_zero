@@ -13,7 +13,7 @@ class OsintWorker(BaseWorker):
         findings = []
         raw_data = {}
 
-        # 1. Subdomain Enumeration (crt.sh & Subfinder)
+        # 1. Subdomain Enumeration (crt.sh — 100% Free, No Key)
         subdomains = await self.subdomain_enum(domain)
         raw_data["subdomains"] = subdomains
         if len(subdomains) > 20:
@@ -24,7 +24,7 @@ class OsintWorker(BaseWorker):
                 "evidence": {"subdomain_count": len(subdomains), "sample": subdomains[:5]}
             })
 
-        # 2. Shodan Infrastructure & Port Audit
+        # 2. Shodan Infrastructure & Port Audit (Free InternetDB fallback)
         shodan_data = await self.shodan_lookup(domain)
         raw_data["shodan"] = shodan_data
         if shodan_data and "vulns" in shodan_data and shodan_data["vulns"]:
@@ -43,19 +43,29 @@ class OsintWorker(BaseWorker):
                 "evidence": {"exposed_ports": exposed_db_ports}
             })
 
-        # 3. Censys Cloud & Certificate Audit (New Censys Platform API)
-        censys_data = await self.censys_lookup(domain)
-        raw_data["censys"] = censys_data
-        if censys_data and censys_data.get("services"):
-            raw_data["cloud_services"] = censys_data.get("services")
+        # 3. EmailRep Domain Reputation (100% Free, No Key)
+        emailrep_data = await self.emailrep_lookup(domain)
+        raw_data["emailrep"] = emailrep_data
+        if emailrep_data.get("suspicious"):
+            findings.append({
+                "title": "Domain Flagged as Suspicious by EmailRep",
+                "description": f"EmailRep reputation engine flagged {domain} as suspicious with low reputation score.",
+                "severity": "medium",
+                "evidence": emailrep_data
+            })
 
-        # 4. IntelX Free Tier Threat & OSINT Search
-        intelx_data = await self.intelx_lookup(domain)
-        raw_data["intelx"] = intelx_data
-        if intelx_data and intelx_data.get("records_found", 0) > 0:
-            raw_data["intelx_records"] = intelx_data.get("records_found")
+        # 4. URLScan Passive Scan (100% Free, No Key for search)
+        urlscan_data = await self.urlscan_lookup(domain)
+        raw_data["urlscan"] = urlscan_data
+        if urlscan_data.get("malicious"):
+            findings.append({
+                "title": "Domain Flagged as Malicious by URLScan Community",
+                "description": f"URLScan.io community scans have flagged resources on {domain} as potentially malicious.",
+                "severity": "high",
+                "evidence": urlscan_data
+            })
 
-        # 5. Dark Web & Breach Intel (HIBP & Hudson Rock)
+        # 5. Dark Web & Breach Intel (Hudson Rock Cavalier — 100% Free, No Key)
         breach_data = await self.check_breaches(domain)
         raw_data["breaches"] = breach_data
         if breach_data and breach_data.get("breaches_found"):
@@ -66,7 +76,7 @@ class OsintWorker(BaseWorker):
                 "evidence": breach_data
             })
 
-        # 5. GitHub Leaked Secrets Check
+        # 6. GitHub Leaked Secrets Check (Free, No Key for basic search)
         github_data = await self.github_leak_check(domain)
         raw_data["github"] = github_data
         if github_data.get("leaks_detected"):
@@ -80,7 +90,7 @@ class OsintWorker(BaseWorker):
         return {"findings": findings, "raw_data": raw_data}
 
     async def subdomain_enum(self, domain: str) -> list:
-        """Query Certificate Transparency logs for public subdomains."""
+        """Query Certificate Transparency logs for public subdomains. (Free, No Key)"""
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
                 resp = await client.get(f"https://crt.sh/?q=%.{domain}&output=json")
@@ -118,7 +128,6 @@ class OsintWorker(BaseWorker):
                             "source": "Shodan API (Key Authenticated)"
                         }
                 except Exception:
-                    # If key has no credits or rate-limits, fall through to free InternetDB
                     pass
 
             # 2. Free Shodan InternetDB Fallback (100% Free & Unlimited, No Key Required)
@@ -138,106 +147,64 @@ class OsintWorker(BaseWorker):
 
         return {"status": "skipped", "reason": "No host intelligence available"}
 
-    async def censys_lookup(self, domain: str) -> dict:
-        """Query new Censys Platform API using Bearer Token authentication."""
-        if not settings.CENSYS_API_TOKEN:
-            return {"status": "skipped", "reason": "No CENSYS_API_TOKEN provided."}
-
+    async def emailrep_lookup(self, domain: str) -> dict:
+        """Query EmailRep.io for domain reputation intelligence. (Free, No Key)"""
         try:
-            loop = asyncio.get_event_loop()
-            ip = await loop.run_in_executor(None, socket.gethostbyname, domain)
-            
-            headers = {
-                "Authorization": f"Bearer {settings.CENSYS_API_TOKEN}",
-                "User-Agent": "ScanZero-Scanner",
-                "Accept": "application/json"
-            }
-            
-            # Censys Platform Host Search API
-            async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
-                resp = await client.get(f"https://search.censys.io/api/v2/hosts/{ip}")
+            email = f"info@{domain}"
+            headers = {"User-Agent": "ScanZero-OSINT", "Accept": "application/json"}
+            async with httpx.AsyncClient(headers=headers, timeout=5.0) as client:
+                resp = await client.get(f"https://emailrep.io/{email}")
                 if resp.status_code == 200:
                     data = resp.json()
-                    services = [s.get("service_name") for s in data.get("result", {}).get("services", []) if s.get("service_name")]
                     return {
-                        "services": services,
-                        "autonomous_system": data.get("result", {}).get("autonomous_system", {}),
-                        "source": "Censys Platform API"
+                        "status": "success",
+                        "reputation": data.get("reputation", "unknown"),
+                        "suspicious": data.get("suspicious", False),
+                        "references": data.get("references", 0),
+                        "details": {
+                            "malicious_activity": data.get("details", {}).get("malicious_activity", False),
+                            "spam": data.get("details", {}).get("spam", False),
+                            "data_breach": data.get("details", {}).get("data_breach", False),
+                            "credentials_leaked": data.get("details", {}).get("credentials_leaked", False),
+                        },
+                        "source": "EmailRep.io (Free)"
                     }
-                elif resp.status_code in (401, 403):
-                    return {"status": "skipped", "reason": f"Censys Platform API authorization notice (HTTP {resp.status_code})."}
+                elif resp.status_code == 429:
+                    return {"status": "rate_limited", "source": "EmailRep.io"}
         except Exception as e:
             return {"status": "error", "error": str(e)}
         return {"status": "no_data"}
 
-    async def intelx_lookup(self, domain: str) -> dict:
-        """Query IntelX Free Tier API endpoint (https://free.intelx.io/) with x-key header."""
-        if not settings.INTELX_API_KEY:
-            return {"status": "skipped", "reason": "No INTELX_API_KEY provided."}
-
+    async def urlscan_lookup(self, domain: str) -> dict:
+        """Query URLScan.io search API for passive intelligence. (Free, No Key for search)"""
         try:
-            base_url = "https://free.intelx.io/"
-            search_url = f"{base_url}phonebook/search"
-            headers = {
-                "x-key": settings.INTELX_API_KEY,
-                "User-Agent": "ScanZero-Scanner",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "term": domain,
-                "maxresults": 20,
-                "media": 0,
-                "target": 1,
-                "timeout": 5
-            }
-
-            async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
-                resp = await client.post(search_url, json=payload)
+            headers = {"User-Agent": "ScanZero-OSINT"}
+            async with httpx.AsyncClient(headers=headers, timeout=6.0) as client:
+                resp = await client.get(f"https://urlscan.io/api/v1/search/?q=domain:{domain}&size=3")
                 if resp.status_code == 200:
                     data = resp.json()
-                    search_id = data.get("id")
-                    if search_id:
-                        res_url = f"{base_url}phonebook/search/result?id={search_id}&limit=20"
-                        res_resp = await client.get(res_url)
-                        if res_resp.status_code == 200:
-                            res_data = res_resp.json()
-                            selectors = res_data.get("selectors", [])
-                            return {
-                                "status": "success",
-                                "records_found": len(selectors),
-                                "sample": [s.get("selectorvalue") for s in selectors[:5]],
-                                "source": "IntelX Free Platform API"
-                            }
-                    return {"status": "success", "records_found": 0}
-                elif resp.status_code in (401, 403):
-                    return {"status": "skipped", "reason": f"IntelX Free API authorization notice (HTTP {resp.status_code})."}
+                    results = data.get("results", [])
+                    if results:
+                        latest = results[0]
+                        verdicts = latest.get("verdicts", {}).get("overall", {})
+                        return {
+                            "status": "success",
+                            "total_scans": data.get("total", 0),
+                            "malicious": verdicts.get("malicious", False),
+                            "score": verdicts.get("score", 0),
+                            "categories": verdicts.get("categories", []),
+                            "latest_scan_url": latest.get("result", ""),
+                            "page_title": latest.get("page", {}).get("title", ""),
+                            "page_ip": latest.get("page", {}).get("ip", ""),
+                            "source": "URLScan.io (Free)"
+                        }
+                    return {"status": "success", "total_scans": 0, "source": "URLScan.io (Free)"}
         except Exception as e:
             return {"status": "error", "error": str(e)}
         return {"status": "no_data"}
 
     async def check_breaches(self, domain: str) -> dict:
-        """Query Have I Been Pwned API if key is provided, or check free breach intelligence."""
-        # 1. HIBP with Key
-        if settings.HIBP_API_KEY:
-            try:
-                headers = {
-                    "hibp-api-key": settings.HIBP_API_KEY,
-                    "user-agent": "ScanZero-Scanner"
-                }
-                async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
-                    resp = await client.get(f"https://haveibeenpwned.com/api/v3/breaches?domain={domain}")
-                    if resp.status_code == 200:
-                        breaches = resp.json()
-                        return {
-                            "breaches_found": len(breaches) > 0,
-                            "breach_count": len(breaches),
-                            "breaches": [b.get("Name") for b in breaches],
-                            "source": "Have I Been Pwned API"
-                        }
-            except Exception as e:
-                return {"status": "error", "error": str(e)}
-
-        # 2. Free Dark Web Breach Intelligence Fallback (Hudson Rock Cavalier API)
+        """Check free breach intelligence via Hudson Rock Cavalier API. (Free, No Key)"""
         try:
             headers = {"User-Agent": "ScanZero-OSINT"}
             async with httpx.AsyncClient(headers=headers, timeout=4.0) as client:
