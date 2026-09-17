@@ -11,7 +11,7 @@ from app.workers.w5_dast import DastWorker
 from app.workers.w6_honeypot import HoneypotWorker
 
 from app.engine.ai_guard import filter_findings
-from app.engine.scorer import (
+from app.engine.scoring import (
     calculate_score,
     assign_grade,
     calculate_category_scores,
@@ -22,12 +22,17 @@ from app.engine.remediation import generate_fixes
 from app.engine.cache import set_cached_scan
 from app.models.database import AsyncSessionLocal
 from app.models.scan import ScanResult
+from app.models.memory_store import MEMORY_SCANS
 from sqlalchemy.future import select
 
 logger = logging.getLogger(__name__)
 
 async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     """Run all workers in parallel and aggregate results."""
+    # Mark running in memory store
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id]["status"] = "running"
+
     # 1. Initialize Workers
     workers = [
         OsintWorker(),
@@ -82,25 +87,39 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
             "domain_unreachable": True,
             "completed_at": datetime.utcnow().isoformat()
         }
-        # Update DB with failed status
-        async with AsyncSessionLocal() as session:
-            uid = UUID(scan_id)
-            stmt = select(ScanResult).where(ScanResult.id == uid)
-            db_res = await session.execute(stmt)
-            scan = db_res.scalar_one_or_none()
-            if scan:
-                scan.status = "failed"
-                scan.score = 0
-                scan.grade = "N/A"
-                scan.results_json = error_result
-                scan.completed_at = datetime.utcnow()
-                await session.commit()
+
+        # Update memory store
+        if scan_id in MEMORY_SCANS:
+            MEMORY_SCANS[scan_id].update({
+                "status": "failed",
+                "score": 0,
+                "grade": "N/A",
+                "results_json": error_result,
+                "completed_at": datetime.utcnow().isoformat()
+            })
+
+        # Update DB if available
+        try:
+            async with AsyncSessionLocal() as session:
+                uid = UUID(scan_id)
+                stmt = select(ScanResult).where(ScanResult.id == uid)
+                db_res = await session.execute(stmt)
+                scan = db_res.scalar_one_or_none()
+                if scan:
+                    scan.status = "failed"
+                    scan.score = 0
+                    scan.grade = "N/A"
+                    scan.results_json = error_result
+                    scan.completed_at = datetime.utcnow()
+                    await session.commit()
+        except Exception as e:
+            logger.warning(f"DB update skipped (memory store updated): {e}")
+
         return error_result
 
     # 6. Honeypot Gate
     is_honeypot = worker_results_dict.get("w6_honeypot", {}).get("raw_data", {}).get("is_honeypot", False)
     if is_honeypot:
-        # We might want to stop early or flag the scan heavily
         logger.warning(f"Honeypot detected for {domain}")
         
     # 7. AI Guard
@@ -108,53 +127,36 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     
     # 8. Multi-Set Scoring Engine
     set_scores = calculate_category_scores(filtered_findings, worker_results_dict)
-    score = calculate_score(filtered_findings, worker_results_dict, set_scores)
+    score = calculate_score(filtered_findings, worker_results_dict)
     grade = assign_grade(score)
-    detailed_sets = generate_detailed_sets(domain, worker_results_dict, set_scores)
-    scoring_breakdown = generate_scoring_breakdown(domain, filtered_findings, set_scores)
-
+    
+    # Generate transparent explanations for Set 1-6
+    detailed_sets = generate_detailed_sets(domain, set_scores, worker_results_dict)
+    scoring_breakdown = generate_scoring_breakdown(set_scores, worker_results_dict)
+    
+    # Extract strengths & critical issues
+    strengths = []
+    weaknesses = []
+    critical_issues = []
+    
+    for s_key, s_data in detailed_sets.items():
+        strengths.extend(s_data.get("positive_findings", []))
+        negatives = s_data.get("negative_findings", [])
+        weaknesses.extend(negatives)
+        if s_data.get("score", 100) < 60:
+            critical_issues.extend(negatives[:2])
+            
+    if score >= 80:
+        status_text = "Hardened against web attacks. Superior cryptographic posture and email defenses."
+    elif score >= 60:
+        status_text = "Moderate security posture. Review recommended security headers and email enforcement."
+    else:
+        status_text = "Elevated risk surface. Missing critical transport layer defenses and baseline headers."
+    
     # 9. Remediation Engine
     remediated_findings = generate_fixes(filtered_findings)
-
-    # Strengths & Weaknesses extraction
-    strengths = []
-    tls_info = worker_results_dict.get("w2_tls", {}).get("raw_data", {}).get("tls", {})
-    if tls_info.get("version") == "TLSv1.3":
-        strengths.append("TLS 1.3 enforced with modern forward-secret cipher suites.")
-    elif tls_info.get("version") == "TLSv1.2":
-        strengths.append("TLS 1.2 encryption active with valid cryptographic certificates.")
-    days = tls_info.get("days_until_expiry", 0)
-    if days > 30:
-        strengths.append(f"Valid Certificate Authority trust chain ({days} days remaining).")
-
-    dns_raw = worker_results_dict.get("w4_dns", {}).get("raw_data", {})
-    if dns_raw.get("spf", {}).get("found"):
-        strengths.append("Sender Policy Framework (SPF) active to restrict email spoofing.")
-    if dns_raw.get("dmarc", {}).get("found"):
-        strengths.append(f"DMARC email policy active ({dns_raw.get('dmarc', {}).get('policy', '')}).")
-    if dns_raw.get("dnssec", {}).get("active"):
-        strengths.append("DNSSEC cryptographic trust chain verified.")
-    if not worker_results_dict.get("w6_honeypot", {}).get("raw_data", {}).get("is_honeypot"):
-        strengths.append("Clean honeypot test: Authentic production server behavior confirmed.")
-
-    weaknesses = [f.get("title") for f in filtered_findings if f.get("severity") in ["medium", "high", "critical"]][:5]
-    critical_issues = [f.get("title") for f in filtered_findings if f.get("severity") in ["high", "critical"]]
-    recommendations = [f.get("remediation_text") for f in remediated_findings if f.get("remediation_text") and f.get("remediation_text") != "Consult standard security guidelines."][:4]
-    if not recommendations:
-        recommendations = [
-            "Add HTTP Strict-Transport-Security (HSTS) with preload directive.",
-            "Deploy Content-Security-Policy (CSP) restricting script execution.",
-            "Upgrade DMARC policy to p=reject to eliminate domain impersonation."
-        ]
-
-    status_text = (
-        "Hardened against web attacks. Superior cryptographic posture and email defenses."
-        if score >= 80 else
-        "Moderate risk posture. Missing critical browser security headers and email enforcement."
-        if score >= 60 else
-        "High vulnerability surface. Urgent remediation required for exposed ports and protocols."
-    )
-
+    recommendations = [f.get("remediation", {}).get("action") for f in remediated_findings if f.get("remediation")]
+    
     final_result_data = {
         "scan_id": scan_id,
         "domain": domain,
@@ -173,31 +175,44 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         "raw_results": worker_results_dict,
         "completed_at": datetime.utcnow().isoformat()
     }
+
+    # 10. Update Memory Store
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "status": "completed",
+            "score": score,
+            "grade": grade,
+            "results_json": final_result_data,
+            "completed_at": datetime.utcnow().isoformat()
+        })
     
-    # 10. Update DB
-    async with AsyncSessionLocal() as session:
-        uid = UUID(scan_id)
-        stmt = select(ScanResult).where(ScanResult.id == uid)
-        db_res = await session.execute(stmt)
-        scan = db_res.scalar_one_or_none()
-        
-        if scan:
-            scan.status = "completed"
-            scan.score = score
-            scan.grade = grade
-            scan.results_json = final_result_data
-            scan.completed_at = datetime.utcnow()
+    # 11. Update DB if available
+    try:
+        async with AsyncSessionLocal() as session:
+            uid = UUID(scan_id)
+            stmt = select(ScanResult).where(ScanResult.id == uid)
+            db_res = await session.execute(stmt)
+            scan = db_res.scalar_one_or_none()
             
-            # Update counts
-            scan.findings_count = len(remediated_findings)
-            scan.critical_count = len([f for f in remediated_findings if f.get("severity") == "critical"])
-            scan.high_count = len([f for f in remediated_findings if f.get("severity") == "high"])
-            scan.medium_count = len([f for f in remediated_findings if f.get("severity") == "medium"])
-            scan.low_count = len([f for f in remediated_findings if f.get("severity") == "low"])
+            if scan:
+                scan.status = "completed"
+                scan.score = score
+                scan.grade = grade
+                scan.results_json = final_result_data
+                scan.completed_at = datetime.utcnow()
+                
+                # Update counts
+                scan.findings_count = len(remediated_findings)
+                scan.critical_count = len([f for f in remediated_findings if f.get("severity") == "critical"])
+                scan.high_count = len([f for f in remediated_findings if f.get("severity") == "high"])
+                scan.medium_count = len([f for f in remediated_findings if f.get("severity") == "medium"])
+                scan.low_count = len([f for f in remediated_findings if f.get("severity") == "low"])
+                
+                await session.commit()
+    except Exception as e:
+        logger.warning(f"DB update skipped (memory store updated): {e}")
             
-            await session.commit()
-            
-    # 11. Cache
+    # 12. Cache
     await set_cached_scan(domain, final_result_data)
     
     return final_result_data
