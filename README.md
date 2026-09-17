@@ -5,7 +5,7 @@
 ScanZero analyzes websites across multiple security and performance dimensions with 55+ automated tools across 6 parallel workers, providing AI-verified findings, clear plain-English score explanations, competitor comparisons, and copy-paste remediation guidance.
 
 ### Features
-- 🔍 **OSINT & Dark Web** — Subdomain enum, Shodan, HIBP breach checks
+- 🔍 **OSINT & Threat Intel** — Subdomains (crt.sh), Shodan, VirusTotal, AlienVault OTX, Hudson Rock breach intelligence
 - 🔒 **TLS & Network** — tshark packet capture, SSLyze deep TLS analysis
 - 🛡️ **HTTP Headers** — CSP parsing, HSTS preload, cookie security
 - 📧 **DNS & Email** — SPF/DMARC/DKIM/DNSSEC validation
@@ -43,14 +43,17 @@ docker-compose --profile full up
 
 ---
 
-## API Keys (Free Tiers)
+## API Keys (100% Free Tiers)
 
-| Service | Free Tier | Get Key |
-|:---|:---|:---|
-| Shodan | 100 queries/month | https://account.shodan.io |
-| HIBP | $3.50/month | https://haveibeenpwned.com/API/Key |
-| Censys | 250 queries/month | https://search.censys.io |
-| Google Gemini | 60 req/min | https://ai.google.dev |
+| Service | Free Tier | Purpose | Get Key |
+|:---|:---|:---|:---|
+| **Google Gemini** | 60 req/min (Free) | AI Verification & Remediation | https://ai.google.dev |
+| **Shodan** | 100 queries/mo + Unlimited InternetDB | Open Ports & CVEs | https://account.shodan.io |
+| **VirusTotal** | 500 requests/day (Free) | Censys Alternative (70+ Antivirus Engines) | https://www.virustotal.com/gui/join-us |
+| **URLScan.io** | 5,000 scans/month (Free) | IntelX Alternative (DOM & Web Audit) | https://urlscan.io/user/signup |
+| **AlienVault OTX** | Unlimited (100% Free) | Threat Intelligence Pulses | https://otx.alienvault.com |
+| **LeakCheck** | Free Tier | DeHashed Alternative (Breach Intel) | https://leakcheck.io |
+| **Hudson Rock** | **Zero-Key (100% Free)** | HIBP Alternative (Cybercrime Infostealer Dumps) | *Built-in, No Key Needed* |
 
 ---
 
