@@ -127,12 +127,12 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     
     # 8. Multi-Set Scoring Engine
     set_scores = calculate_category_scores(filtered_findings, worker_results_dict)
-    score = calculate_score(filtered_findings, worker_results_dict)
+    score = calculate_score(filtered_findings, worker_results_dict, set_scores)
     grade = assign_grade(score)
     
     # Generate transparent explanations for Set 1-6
-    detailed_sets = generate_detailed_sets(domain, set_scores, worker_results_dict)
-    scoring_breakdown = generate_scoring_breakdown(set_scores, worker_results_dict)
+    detailed_sets = generate_detailed_sets(domain, worker_results_dict, set_scores)
+    scoring_breakdown = generate_scoring_breakdown(domain, filtered_findings, set_scores)
     
     # Extract strengths & critical issues
     strengths = []

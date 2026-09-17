@@ -22,8 +22,18 @@ class ScanRequest(BaseModel):
     force: bool = False
 
 async def start_scan_task(scan_id: uuid.UUID, domain: str, url: str):
-    from app.engine.dispatcher import run_scan
-    await run_scan(str(scan_id), domain, url)
+    scan_id_str = str(scan_id)
+    try:
+        from app.engine.dispatcher import run_scan
+        await run_scan(scan_id_str, domain, url)
+    except Exception as e:
+        logger.error(f"Error in start_scan_task for {domain}: {e}", exc_info=True)
+        if scan_id_str in MEMORY_SCANS:
+            MEMORY_SCANS[scan_id_str]["status"] = "failed"
+            MEMORY_SCANS[scan_id_str]["results_json"] = {
+                "error": f"Scan failed during processing: {str(e)}",
+                "domain_unreachable": False,
+            }
 
 @router.post("/scan")
 async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
