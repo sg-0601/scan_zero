@@ -10,7 +10,7 @@ import RadarChart from "@/components/RadarChart";
 import KillChainGraph from "@/components/KillChainGraph";
 import RemediationCard from "@/components/RemediationCard";
 import GeminiAssistant from "@/components/GeminiAssistant";
-import { Download, Globe, Activity, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, Sparkles, Crosshair, ArrowRight, Zap, Layers, AlertTriangle, Cpu } from "lucide-react";
+import { Download, Globe, Activity, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, Sparkles, Crosshair, ArrowRight, Zap, Layers, AlertTriangle, Cpu, Check } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
 
 export default function ScanResultsPage() {
