@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import ScoreGauge from "@/components/ScoreGauge";
 import HealingShield from "@/components/HealingShield";
 import FindingsTable from "@/components/FindingsTable";
 import ScanProgress from "@/components/ScanProgress";
@@ -10,7 +9,7 @@ import RadarChart from "@/components/RadarChart";
 import KillChainGraph from "@/components/KillChainGraph";
 import RemediationCard from "@/components/RemediationCard";
 import GeminiAssistant from "@/components/GeminiAssistant";
-import { Download, Globe, Activity, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, Sparkles, Crosshair, ArrowRight, Zap, Layers, AlertTriangle, Cpu, Check } from "lucide-react";
+import { Download, Globe, Activity, Shield, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, Sparkles, Crosshair, ArrowRight, Zap, Layers, AlertTriangle, Cpu, Check } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
 
 export default function ScanResultsPage() {
@@ -229,29 +228,63 @@ export default function ScanResultsPage() {
               Posture Breakdown
             </h3>
           </div>
-          <HealingShieldDonut findings={findings} overallScore={overallScore} />
+          <HealingShield score={overallScore} grade={grade} />
+          <p className="text-xs text-gray-500 mt-4 max-w-xs">
+            Visually repairs and glows as security patches and headers are applied.
+          </p>
         </div>
 
         {/* Visual 2: Category Breakdown Bars */}
-        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-4 h-4 text-teal-600" />
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
-              6-Vector Score Profile
-            </h3>
+        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Activity className="w-4 h-4 text-teal-600" />
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
+                6-Vector Score Profile
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {categories.map((cat, i) => (
+                <div key={i} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-medium text-gray-800">{cat.name}</span>
+                    <span className="text-xs font-bold text-gray-600">{cat.score}/100</span>
+                  </div>
+                  <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full ${
+                        cat.score >= 80 
+                          ? "bg-emerald-400" 
+                          : cat.score >= 60 
+                          ? "bg-yellow-400" 
+                          : cat.score >= 40 
+                          ? "bg-orange-400" 
+                          : "bg-red-400"
+                      } transition-all duration-1000`}
+                      style={{ width: `${cat.score}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <CategoryBreakdown categories={categories} />
+          <div className="text-[11px] text-gray-400 font-mono mt-4 pt-3 border-t border-gray-200">
+            Formula: Crypto (25%) + Headers (30%) + DNS (20%) + Surface (25%)
+          </div>
         </div>
 
         {/* Visual 3: Radar Chart */}
-        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Cpu className="w-4 h-4 text-teal-600" />
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
-              Perimeter Defense Radar
-            </h3>
+        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div className="w-full">
+            <div className="flex items-center gap-2 mb-2">
+              <Cpu className="w-4 h-4 text-teal-600" />
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
+                Perimeter Defense Radar
+              </h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">Target domain vs industry benchmark</p>
           </div>
-          <PerimeterRadarChart categories={categories} />
+          <RadarChart mainTarget={targetDomain} scores={setScores} />
         </div>
       </div>
 
