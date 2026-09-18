@@ -234,107 +234,102 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
     """Deterministic fallback generator when Gemini API key is unavailable or offline."""
     logger.info(f"Generating deterministic fallback security intelligence for {domain}")
     
-    # Calculate baseline heuristic score
-    crit_count = sum(1 for f in raw_findings if f.get("severity") == "critical")
-    high_count = sum(1 for f in raw_findings if f.get("severity") == "high")
-    med_count = sum(1 for f in raw_findings if f.get("severity") == "medium")
+    from app.engine.scorer import (
+        calculate_category_scores,
+        calculate_score,
+        assign_grade,
+        generate_detailed_sets,
+        generate_scoring_breakdown
+    )
     
-    score = max(20, 100 - (crit_count * 25 + high_count * 15 + med_count * 6))
-    if score >= 85:
-        grade = "A"
-    elif score >= 70:
-        grade = "B"
-    elif score >= 55:
-        grade = "C"
-    elif score >= 40:
-        grade = "D"
-    else:
-        grade = "F"
+    set_scores = calculate_category_scores(raw_findings, tool_outputs)
+    score = calculate_score(raw_findings, tool_outputs, set_scores)
+    grade = assign_grade(score)
+    detailed_sets = generate_detailed_sets(domain, tool_outputs, set_scores, raw_findings)
+    scoring_breakdown = generate_scoring_breakdown(domain, raw_findings, set_scores)
 
     return {
         "ai_powered": False,
         "gemini_model_used": "deterministic-fallback",
         "executive_summary": (
-            f"Automated multi-tool scan across 6 security vectors completed for {domain}. "
-            f"Identified {len(raw_findings)} potential security findings. "
-            f"Transport encryption and boundary controls were evaluated."
+            f"Automated multi-tool scan across 6 security dimensions completed for {domain}. "
+            f"Evaluated transport layer encryption, HTTP security headers, DNS anti-spoofing policies, "
+            f"external OSINT attack surface, DAST sensitive endpoint probes, and deception posture. "
+            f"Overall posture is rated Grade {grade} ({score}/100)."
         ),
-        "threat_verdict": f"Security Posture Rating: Grade {grade} ({score}/100)",
+        "threat_verdict": f"Security Posture Rating: Grade {grade} ({score}/100) — {score}% Compliance",
         "ai_score": score,
         "ai_grade": grade,
-        "category_scores": {
-            "crypto_tls": {
-                "score": min(100, score + 5),
-                "rationale": "Evaluated TLS handshake, certificate validity, and cipher strength."
-            },
-            "headers_config": {
-                "score": max(30, score - 5),
-                "rationale": "Evaluated modern HTTP defense headers and cookie security flags."
-            },
-            "dns_email": {
-                "score": min(100, score + 2),
-                "rationale": "Evaluated SPF, DMARC, DKIM, and DNSSEC cryptographic records."
-            },
-            "surface_intel": {
-                "score": score,
-                "rationale": "Correlated Shodan open ports, VirusTotal scans, and external attack surface."
-            }
-        },
+        "set_scores": set_scores,
+        "detailed_sets": detailed_sets,
+        "scoring_breakdown": scoring_breakdown,
         "attacker_perspective": (
-            f"An external adversary targeting {domain} would examine exposed DNS records for email impersonation opportunities "
-            f"and probe web endpoints for missing transport headers to facilitate adversary-in-the-middle attacks."
+            f"An external adversary auditing {domain} will examine exposed DNS records for email impersonation opportunities "
+            f"and probe web endpoints for missing transport headers to facilitate clickjacking and adversary-in-the-middle attacks."
         ),
         "attack_chain": [
             {
                 "step": 1,
-                "title": "Reconnaissance & OSINT",
-                "description": f"Gather public subdomains and DNS records for {domain}.",
+                "title": "Perimeter Footprinting & OSINT",
+                "description": f"Gather public subdomains and DNS records for {domain} via Certificate Transparency logs.",
                 "exploit_vector": "Public intelligence discovery"
             },
             {
                 "step": 2,
-                "title": "Perimeter Header Inspection",
-                "description": "Probe HTTP response headers to identify missing framing and content controls.",
+                "title": "Transport & Header Verification",
+                "description": "Probe HTTP response headers to identify missing framing, HSTS, and Content-Security-Policy controls.",
                 "exploit_vector": "Client-side injection / Clickjacking"
             },
             {
                 "step": 3,
-                "title": "Targeted Exploitation",
-                "description": "Attempt to leverage unhardened vectors against domain users.",
+                "title": "Exploit Chaining",
+                "description": "Attempt to leverage unhardened vectors to conduct phishing, session tampering, or MIME-sniffing.",
                 "exploit_vector": "Domain spoofing / session hijack"
             }
         ],
         "strengths": [
-            "Valid SSL/TLS certificate issued and operational",
-            "Core network endpoints responding to secure transport"
+            "Cryptographic SSL/TLS transport layer successfully negotiated.",
+            "DNS zone operational with resolving nameservers.",
+            "Clean canary honeypot test: authentic production server behavior verified."
         ],
         "critical_risks": [
             f.get("title", "Missing defense configuration") for f in raw_findings if f.get("severity") in ("critical", "high")
-        ][:3] or ["Review missing HTTP security headers"],
+        ][:4] or ["Deploy missing HTTP security headers (HSTS, CSP, X-Frame-Options)"],
+        "recommendations": [
+            "Enforce HTTP Strict-Transport-Security (HSTS) with includeSubDomains and preload.",
+            "Implement a restrictive Content-Security-Policy (CSP) to stop cross-site scripting.",
+            "Upgrade DMARC policy to p=reject to prevent email domain spoofing."
+        ],
         "remediation_roadmap": {
             "phase_1_immediate": [
-                "Deploy Strict-Transport-Security (HSTS) header",
-                "Enforce strict SPF and DMARC reject policies"
+                "Deploy Strict-Transport-Security (HSTS) header on port 443",
+                "Enforce strict SPF and DMARC reject policies against phishing"
             ],
             "phase_2_short_term": [
                 "Implement strict Content-Security-Policy (CSP)",
-                "Add Secure and HttpOnly flags to all session cookies"
+                "Add Secure, HttpOnly, and SameSite flags to all session cookies"
             ],
             "phase_3_strategic": [
-                "Enable DNSSEC validation at domain registrar",
-                "Implement automated vulnerability scanning in CI/CD"
+                "Enable DNSSEC cryptographic validation at domain registrar",
+                "Establish automated vulnerability scanning in CI/CD pipeline"
             ]
+        },
+        "server_hardening": {
+            "nginx": f"# ScanZero Hardening for {domain} (Nginx)\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\" always;\nadd_header X-Content-Type-Options \"nosniff\" always;\nadd_header X-Frame-Options \"SAMEORIGIN\" always;\nadd_header Referrer-Policy \"strict-origin-when-cross-origin\" always;\nadd_header Content-Security-Policy \"default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline';\" always;",
+            "apache": f"# ScanZero Hardening for {domain} (Apache .htaccess)\n<IfModule mod_headers.c>\n  Header always set Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\"\n  Header always set X-Content-Type-Options \"nosniff\"\n  Header always set X-Frame-Options \"SAMEORIGIN\"\n  Header always set Referrer-Policy \"strict-origin-when-cross-origin\"\n  Header always set Content-Security-Policy \"default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline';\"\n</IfModule>",
+            "cloudflare": f"// Cloudflare Transform Rule for {domain}\n// Add Response Headers: Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy",
+            "caddy": f"# ScanZero Hardening for {domain} (Caddy)\nheader {{\n    Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\"\n    X-Content-Type-Options \"nosniff\"\n    X-Frame-Options \"SAMEORIGIN\"\n    Referrer-Policy \"strict-origin-when-cross-origin\"\n}}"
         },
         "ready_to_deploy_fixes": [
             {
-                "title": "HSTS & Header Hardening",
+                "title": "HSTS & Transport Security Hardening",
                 "target": "Web Server",
                 "type": "nginx",
                 "code": "add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\" always;\nadd_header X-Content-Type-Options \"nosniff\" always;\nadd_header X-Frame-Options \"SAMEORIGIN\" always;",
                 "explanation": "Enforces HTTPS encryption and protects against clickjacking and MIME-sniffing."
             },
             {
-                "title": "Strict DMARC Anti-Spoofing",
+                "title": "Strict DMARC Anti-Spoofing Record",
                 "target": "DNS Zone",
                 "type": "dns",
                 "code": f"_dmarc.{domain}. IN TXT \"v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc-reports@{domain}; pct=100;\"",
@@ -365,92 +360,236 @@ TELEMETRY & FINDINGS DATA:
 {json.dumps(telemetry, indent=2)}
 
 YOUR TASK:
-Add deep security intelligence to this raw data and generate the definitive, final security assessment.
-Correlate findings across tools (e.g., how an exposed port or missing header combines with DNS or OSINT data).
-Synthesize this into a cohesive, professional security audit.
+Synthesize ALL this raw telemetry and generate the COMPLETE, definitive security report for the website.
+Everything displayed on the ScanZero dashboard — scores, all 6 sets, radar chart data, scoring breakdown, recommendations, executive summary, and ready-to-deploy code snippets — MUST BE DYNAMICALLY GENERATED BY YOU BASED ON THIS ACTUAL DOMAIN'S REAL TELEMETRY.
 
 Return a STRICT, VALID JSON object with the following schema:
 {{
-  "executive_summary": "A 2-4 sentence executive overview of the domain's real-world security posture, written in clear, plain English for CTOs and developers.",
-  "threat_verdict": "A punchy, single-sentence summary verdict (e.g. 'Hardened Cloudflare Perimeter with Critical Email Spoofing Vulnerabilities').",
-  "ai_score": 0 to 100 integer representing overall security score (weighing real exploitability, critical misconfigurations, and active protections like WAF),
+  "ai_score": 0 to 100 integer (overall score reflecting real-world posture, exploitability, and active protections),
   "ai_grade": "A+", "A", "B", "C", "D", or "F",
-  "category_scores": {{
-    "crypto_tls": {{ "score": 0 to 100 integer, "rationale": "1-2 sentence AI explanation of the cryptographic posture" }},
-    "headers_config": {{ "score": 0 to 100 integer, "rationale": "1-2 sentence AI explanation of header defense and browser isolation" }},
-    "dns_email": {{ "score": 0 to 100 integer, "rationale": "1-2 sentence AI explanation of email spoofing protection and DNSSEC" }},
-    "surface_intel": {{ "score": 0 to 100 integer, "rationale": "1-2 sentence AI explanation of attack surface, open ports, and threat intel" }}
+  "threat_verdict": "Single punchy verdict sentence (e.g. 'Hardened Perimeter with Critical Email Spoofing Vulnerabilities')",
+  "executive_summary": "2-4 sentence executive overview for CTOs and developers, summarizing real strengths and main risks.",
+  "set_scores": {{
+    "set1": 0 to 100 integer (Set 1: Network & TLS Encryption),
+    "set2": 0 to 100 integer (Set 2: HTTP Security Headers & CSP),
+    "set3": 0 to 100 integer (Set 3: DNS & Anti-Spoofing Posture),
+    "set4": 0 to 100 integer (Set 4: Attack Surface & OSINT Footprint),
+    "set5": 0 to 100 integer (Set 5: DAST & Sensitive Endpoint Probes),
+    "set6": 0 to 100 integer (Set 6: Deception & Honeypot Posture)
   }},
-  "attacker_perspective": "A concise paragraph explaining exactly how a motivated adversary views this target, what attack vectors they would prioritize, and why.",
+  "detailed_sets": {{
+    "set1": {{
+      "name": "Set 1: Network & TLS Encryption",
+      "score": 0 to 100 integer,
+      "grade": "A+", "A", "B", "C", "D", or "F",
+      "analyzedItems": ["TLS Protocol Negotiation", "Cipher Suite Strength", "Port 80 Cleartext Redirect", "Certificate Validity"],
+      "positiveFindings": ["List of 1-3 verified strengths from telemetry"],
+      "negativeFindings": ["List of 1-3 gaps or deductions from telemetry"],
+      "whyScoreGiven": "Clear, authoritative explanation of why this score was given based on real data",
+      "evidence": "Concrete evidence summary (e.g. 'TLS 1.3 • Cipher: AES-256-GCM • Expires in 180 days')",
+      "recommendation": "Specific actionable recommendation to improve Set 1",
+      "metricValue": "Concise metric string (e.g. 'TLS 1.3 Active (180d left)')"
+    }},
+    "set2": {{
+      "name": "Set 2: HTTP Security Headers",
+      "score": 0 to 100 integer,
+      "grade": "A+", "A", "B", "C", "D", or "F",
+      "analyzedItems": ["Content-Security-Policy (CSP)", "Strict-Transport-Security (HSTS)", "X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy"],
+      "positiveFindings": ["List of active headers detected"],
+      "negativeFindings": ["List of missing or flawed headers"],
+      "whyScoreGiven": "Explanation of score based on presence/absence of critical defense headers",
+      "evidence": "Concrete evidence (e.g. 'Present: nosniff • Missing: CSP, HSTS, XFO')",
+      "recommendation": "Step-by-step recommendation for web server configuration",
+      "metricValue": "Concise metric (e.g. '2/6 Headers Active')"
+    }},
+    "set3": {{
+      "name": "Set 3: DNS & Anti-Spoofing",
+      "score": 0 to 100 integer,
+      "grade": "A+", "A", "B", "C", "D", or "F",
+      "analyzedItems": ["SPF Authentication Record", "DMARC Policy Enforcement", "MX Server Validation", "DNSSEC Cryptographic Chain"],
+      "positiveFindings": ["List of positive DNS protections found"],
+      "negativeFindings": ["List of DNS spoofing weaknesses found"],
+      "whyScoreGiven": "Explanation of score based on SPF/DMARC/DNSSEC status",
+      "evidence": "Concrete evidence (e.g. 'SPF: Active • DMARC: p=none • DNSSEC: Inactive')",
+      "recommendation": "Recommendation for DNS zone hardening",
+      "metricValue": "Concise metric (e.g. 'DMARC p=none (Spoofable)')"
+    }},
+    "set4": {{
+      "name": "Set 4: Attack Surface & OSINT",
+      "score": 0 to 100 integer,
+      "grade": "A+", "A", "B", "C", "D", or "F",
+      "analyzedItems": ["VirusTotal 70+ Vendor Reputation", "Shodan Port & CVE Audit", "Dark Web Credential Breaches", "Subdomain Footprint"],
+      "positiveFindings": ["Positive OSINT findings"],
+      "negativeFindings": ["Negative OSINT findings or open port risks"],
+      "whyScoreGiven": "Explanation based on VirusTotal, Shodan, and breach telemetry",
+      "evidence": "Concrete evidence (e.g. 'VirusTotal 0/70 clean • 0 breaches found • 2 open ports')",
+      "recommendation": "Recommendation for perimeter attack surface reduction",
+      "metricValue": "Concise metric (e.g. 'Clean Reputation (2 Ports)')"
+    }},
+    "set5": {{
+      "name": "Set 5: DAST & Vulnerabilities",
+      "score": 0 to 100 integer,
+      "grade": "A+", "A", "B", "C", "D", or "F",
+      "analyzedItems": ["Sensitive File Probes (/.env, /.git)", "Configuration Backups", "Diagnostic Endpoints", "Server Version Banners"],
+      "positiveFindings": ["Positive probe findings (e.g. 404 blocked)"],
+      "negativeFindings": ["Any sensitive files or banners exposed"],
+      "whyScoreGiven": "Explanation of score based on active probe responses",
+      "evidence": "Concrete evidence (e.g. 'Probed /.env (404), /.git (404), /phpinfo (404)')",
+      "recommendation": "Recommendation for server directory and sensitive file blocking",
+      "metricValue": "Concise metric (e.g. '0 Leaks Detected')"
+    }},
+    "set6": {{
+      "name": "Set 6: Deception & Honeypot",
+      "score": 0 to 100 integer,
+      "grade": "A+", "A", "B", "C", "D", or "F",
+      "analyzedItems": ["Canary Path Probes", "Tarpit Latency Analysis", "Honeypot Signature Detection"],
+      "positiveFindings": ["Positive findings (e.g. authentic error handling)"],
+      "negativeFindings": ["Deception anomalies if any"],
+      "whyScoreGiven": "Explanation of host authenticity score",
+      "evidence": "Concrete evidence (e.g. 'Canary probes correctly returned 404/403 (Score: 0.0)')",
+      "recommendation": "Recommendation on canary route behavior",
+      "metricValue": "Concise metric (e.g. 'Authentic Production Host')"
+    }}
+  }},
+  "scoring_breakdown": [
+    {{
+      "category": "TLS & Cryptography",
+      "earned": integer,
+      "max": 25,
+      "reasonEarned": "Reason points were awarded",
+      "reasonDeducted": "Reason points were deducted",
+      "detectedIssue": "Detected issue or 'None'",
+      "severity": "Critical" | "High" | "Medium" | "Low" | "Clean",
+      "evidence": "Specific telemetry evidence",
+      "improvement": "Action to earn remaining points"
+    }},
+    {{
+      "category": "HTTP Security Headers",
+      "earned": integer,
+      "max": 30,
+      "reasonEarned": "Reason points were awarded",
+      "reasonDeducted": "Reason points were deducted",
+      "detectedIssue": "Specific missing headers",
+      "severity": "Critical" | "High" | "Medium" | "Low" | "Clean",
+      "evidence": "Headers present vs missing",
+      "improvement": "Add missing headers"
+    }},
+    {{
+      "category": "Email & DNS Spoofing",
+      "earned": integer,
+      "max": 20,
+      "reasonEarned": "Reason points were awarded",
+      "reasonDeducted": "Reason points were deducted",
+      "detectedIssue": "DMARC/DNSSEC status",
+      "severity": "Critical" | "High" | "Medium" | "Low" | "Clean",
+      "evidence": "SPF/DMARC record syntax",
+      "improvement": "Upgrade DMARC policy"
+    }},
+    {{
+      "category": "Attack Surface & OSINT",
+      "earned": integer,
+      "max": 15,
+      "reasonEarned": "Reason points were awarded",
+      "reasonDeducted": "Reason points were deducted",
+      "detectedIssue": "Open ports / breaches if any",
+      "severity": "Critical" | "High" | "Medium" | "Low" | "Clean",
+      "evidence": "VirusTotal & Shodan summary",
+      "improvement": "Perimeter minimization action"
+    }},
+    {{
+      "category": "Sensitive File Probes",
+      "earned": integer,
+      "max": 5,
+      "reasonEarned": "Reason points were awarded",
+      "reasonDeducted": "Reason points were deducted",
+      "detectedIssue": "Probe results",
+      "severity": "Critical" | "High" | "Medium" | "Low" | "Clean",
+      "evidence": "Probe status codes",
+      "improvement": "Restrict hidden files"
+    }},
+    {{
+      "category": "Deception Posture",
+      "earned": integer,
+      "max": 5,
+      "reasonEarned": "Reason points were awarded",
+      "reasonDeducted": "Reason points were deducted",
+      "detectedIssue": "Honeypot status",
+      "severity": "Clean",
+      "evidence": "Canary test results",
+      "improvement": "Maintain standard 404 routing"
+    }}
+  ],
+  "attacker_perspective": "A paragraph explaining exactly how an external adversary analyzes this domain and what attack vectors they prioritize.",
   "attack_chain": [
     {{
       "step": 1,
-      "title": "Stage title (e.g. Reconnaissance & Footprinting)",
-      "description": "How the attacker uses tool findings (e.g. subdomains, exposed tech)",
-      "exploit_vector": "E.g. Public OSINT & DNS enumeration"
+      "title": "Phase 1 Title",
+      "description": "Exploitation description",
+      "exploit_vector": "Attack vector"
     }},
     {{
       "step": 2,
-      "title": "Stage title (e.g. Exploitation / Impersonation)",
-      "description": "How the next vulnerability in the chain is exploited (e.g. missing DMARC or missing CSP)",
-      "exploit_vector": "E.g. Business Email Compromise / Phishing"
+      "title": "Phase 2 Title",
+      "description": "Exploitation description",
+      "exploit_vector": "Attack vector"
     }},
     {{
       "step": 3,
-      "title": "Stage title (e.g. Perimeter Breach or Lateral Movement)",
-      "description": "The final impact of chaining these weaknesses together",
-      "exploit_vector": "E.g. Credential harvesting / Session hijacking"
+      "title": "Phase 3 Title",
+      "description": "Exploitation description",
+      "exploit_vector": "Attack vector"
     }}
   ],
   "strengths": [
-    "List of 2 to 4 positive security defenses confirmed by the tools (e.g., 'Modern TLS 1.3 enforced', 'Protected behind Cloudflare WAF', 'No leaked infostealer credentials')"
+    "3 to 5 verified strengths discovered by the tools"
   ],
   "critical_risks": [
-    "List of 1 to 4 top critical posture gaps requiring immediate remediation"
+    "1 to 4 priority vulnerabilities or configuration gaps"
   ],
-  "intelligent_findings": [
-    {{
-      "title": "Clean, descriptive vulnerability or misconfiguration title",
-      "severity": "critical" | "high" | "medium" | "low" | "info",
-      "category": "crypto" | "headers" | "dns" | "osint" | "dast",
-      "description": "Plain-English description of the finding",
-      "ai_insight": "Gemini intelligence explaining why this matters and how an attacker could exploit it",
-      "remediation_text": "Actionable instructions on how to resolve the finding",
-      "remediation_code": "Copy-paste configuration snippet (Nginx, Apache, or DNS record)",
-      "remediation_type": "nginx" | "apache" | "dns" | "cloudflare" | "config"
-    }}
+  "recommendations": [
+    "3 to 5 prioritized, clear recommendations"
   ],
+  "server_hardening": {{
+    "nginx": "Complete tailored Nginx configuration block with exact missing headers for this site",
+    "apache": "Complete tailored Apache .htaccess configuration block with exact missing headers",
+    "cloudflare": "Tailored Cloudflare Transform Rule instructions or worker snippet",
+    "caddy": "Tailored Caddyfile snippet"
+  }},
   "remediation_roadmap": {{
-    "phase_1_immediate": [
-      "Actions to execute within 24 hours"
-    ],
-    "phase_2_short_term": [
-      "Actions to execute within 7 days"
-    ],
-    "phase_3_strategic": [
-      "Long-term defense-in-depth security improvements"
-    ]
+    "phase_1_immediate": ["Action 1", "Action 2"],
+    "phase_2_short_term": ["Action 1", "Action 2"],
+    "phase_3_strategic": ["Action 1", "Action 2"]
   }},
   "ready_to_deploy_fixes": [
     {{
       "title": "Fix title",
-      "target": "E.g. Nginx / Apache / DNS / Cloudflare",
+      "target": "Nginx / Apache / DNS / Cloudflare",
       "type": "nginx" | "apache" | "dns" | "cloudflare",
       "code": "Actual copy-paste configuration block",
-      "explanation": "Why this snippet fixes the underlying vulnerability"
+      "explanation": "Why this fixes the issue"
     }}
   ]
 }}
 
-IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or conversational text outside the JSON.
+IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or backticks outside the JSON.
 """
 
-    raw_response = await call_gemini_api(prompt, response_json=True, timeout_sec=16.0)
+    raw_response = await call_gemini_api(prompt, response_json=True, timeout_sec=18.0)
     parsed_json = clean_and_parse_json(raw_response) if raw_response else None
 
     if not parsed_json or "ai_score" not in parsed_json:
         logger.warning("Gemini synthesis returned incomplete or unparseable JSON. Falling back to structured synthesizer.")
         return generate_fallback_intelligence(domain, url, worker_results, raw_findings)
+
+    # Ensure all 6 set scores exist
+    set_scores = parsed_json.get("set_scores", {})
+    if not isinstance(set_scores, dict) or len(set_scores) < 6:
+        from app.engine.scorer import calculate_category_scores
+        fallback_set_scores = calculate_category_scores(raw_findings, worker_results)
+        for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
+            if k not in set_scores:
+                set_scores[k] = fallback_set_scores.get(k, 75)
+        parsed_json["set_scores"] = set_scores
 
     parsed_json["ai_powered"] = True
     parsed_json["gemini_model_used"] = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-3.8-flash")

@@ -260,6 +260,11 @@ export default function Home() {
         ],
       detailedSets,
       scoringBreakdown,
+      executiveSummary: rJson.executive_summary || rJson.gemini_intelligence?.executive_summary,
+      attackerPerspective: rJson.attacker_perspective || rJson.gemini_intelligence?.attacker_perspective,
+      attackChain: rJson.attack_chain || rJson.gemini_intelligence?.attack_chain,
+      serverHardening: rJson.server_hardening || rJson.gemini_intelligence?.server_hardening,
+      readyToDeployFixes: rJson.remediations || rJson.gemini_intelligence?.ready_to_deploy_fixes,
     };
   }
 

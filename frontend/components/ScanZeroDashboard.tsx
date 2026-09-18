@@ -93,6 +93,11 @@ export interface WebsiteResult {
     evidence: string;
     improvement: string;
   }[];
+  executiveSummary?: string;
+  attackerPerspective?: string;
+  attackChain?: { step: number; title: string; description: string; exploit_vector: string }[];
+  serverHardening?: Record<string, string>;
+  readyToDeployFixes?: { title: string; target: string; type: string; code: string; explanation: string }[];
 }
 
 interface ScanZeroDashboardProps {
@@ -115,8 +120,11 @@ export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashbo
     }
   };
 
+  const isComparison = results.length > 1;
+  const currentSite = results[selectedSiteIndex] || results[0];
+
   const serverSnippets: Record<string, string> = {
-    nginx: `# ScanZero Hardening Bundle for Nginx (/etc/nginx/conf.d/security.conf)
+    nginx: currentSite.serverHardening?.nginx || `# ScanZero Hardening Bundle for Nginx (/etc/nginx/conf.d/security.conf)
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
@@ -124,7 +132,7 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Content-Security-Policy "default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; object-src 'none';" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;`,
 
-    apache: `# ScanZero Hardening Bundle for Apache (.htaccess / httpd.conf)
+    apache: currentSite.serverHardening?.apache || `# ScanZero Hardening Bundle for Apache (.htaccess / httpd.conf)
 <IfModule mod_headers.c>
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
   Header always set X-Content-Type-Options "nosniff"
@@ -134,7 +142,7 @@ add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
 </IfModule>`,
 
-    caddy: `# ScanZero Hardening for Caddyfile
+    caddy: currentSite.serverHardening?.caddy || `# ScanZero Hardening for Caddyfile
 header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     X-Content-Type-Options "nosniff"
@@ -144,7 +152,7 @@ header {
     Permissions-Policy "camera=(), microphone=(), geolocation=()"
 }`,
 
-    cloudflare: `// Cloudflare Transform Rule / Cloudflare Worker
+    cloudflare: currentSite.serverHardening?.cloudflare || `// Cloudflare Transform Rule / Cloudflare Worker
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
@@ -159,9 +167,6 @@ async function handleRequest(request) {
   return new Response(response.body, { status: response.status, headers: newHeaders });
 }`
   };
-
-  const isComparison = results.length > 1;
-  const currentSite = results[selectedSiteIndex] || results[0];
 
   const handleDownloadReport = () => {
     setIsDownloading(true);
@@ -1093,6 +1098,57 @@ async function handleRequest(request) {
                     <div className="text-[10px] text-gray-400">SSL Valid</div>
                   </div>
                 </div>
+
+                {/* Gemini AI Executive Summary & Threat Intelligence */}
+                {currentSite.executiveSummary && (
+                  <div className="bg-gradient-to-r from-teal-50/70 via-cyan-50/40 to-white border border-teal-200/80 rounded-2xl p-5 shadow-sm space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-teal-600" />
+                      <h3 className="text-xs font-mono font-bold text-teal-700 uppercase tracking-wider">
+                        Google Gemini AI &bull; Executive Threat Assessment
+                      </h3>
+                    </div>
+                    <p className="text-xs text-gray-700 leading-relaxed font-sans">
+                      {currentSite.executiveSummary}
+                    </p>
+                    {currentSite.attackerPerspective && (
+                      <div className="pt-3 border-t border-teal-100">
+                        <span className="text-[11px] font-mono uppercase font-bold text-rose-600 block mb-1">
+                          Adversary / Threat Actor Perspective:
+                        </span>
+                        <p className="text-xs text-gray-600 leading-relaxed italic">
+                          "{currentSite.attackerPerspective}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Gemini AI Attack Chain Scenario (if present) */}
+                {currentSite.attackChain && currentSite.attackChain.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-mono font-bold text-rose-600 uppercase tracking-wider flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5" /> AI Correlated Exploitation Chain
+                      </h3>
+                      <span className="text-[10px] font-mono text-gray-400 font-bold">{currentSite.attackChain.length} Stages Identified</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {currentSite.attackChain.map((step, sIdx) => (
+                        <div key={sIdx} className="bg-gray-50 border border-gray-200 p-3.5 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">
+                              Stage {step.step || sIdx + 1}
+                            </span>
+                            <span className="text-[10px] font-mono text-gray-400 truncate max-w-[120px]">{step.exploit_vector}</span>
+                          </div>
+                          <h4 className="font-bold text-xs text-gray-900">{step.title}</h4>
+                          <p className="text-[11px] text-gray-500 leading-relaxed">{step.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Actionable Priority Matrix */}
                 <div>

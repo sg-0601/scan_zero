@@ -160,6 +160,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         gemini_intel = generate_fallback_intelligence(domain, url, worker_results_dict, remediated_findings)
 
     # 10. Harmonize Final Results with Gemini's AI Intelligence
+    server_hardening = {}
     if gemini_intel:
         if "ai_score" in gemini_intel and gemini_intel.get("ai_score") is not None:
             score = int(gemini_intel["ai_score"])
@@ -171,17 +172,32 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
             "Elevated risk surface. Missing critical transport layer defenses and baseline headers."
         )
         
-        strengths = gemini_intel.get("strengths") or ["Core transport encryption verified."]
-        critical_issues = gemini_intel.get("critical_risks") or []
+        strengths = gemini_intel.get("strengths") or strengths or ["Core transport encryption verified."]
+        critical_issues = gemini_intel.get("critical_risks") or critical_issues or []
         
-        cat_scores = gemini_intel.get("category_scores", {})
-        if cat_scores:
-            set_scores = {
-                "set1": cat_scores.get("crypto_tls", {}).get("score", set_scores.get("set1", 80)),
-                "set2": cat_scores.get("headers_config", {}).get("score", set_scores.get("set2", 70)),
-                "set3": cat_scores.get("dns_email", {}).get("score", set_scores.get("set3", 75)),
-                "set4": cat_scores.get("surface_intel", {}).get("score", set_scores.get("set4", 80)),
-            }
+        # Adopt Gemini's full 6-set dynamic scores
+        gemini_set_scores = gemini_intel.get("set_scores", {})
+        if isinstance(gemini_set_scores, dict) and gemini_set_scores:
+            for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
+                if k in gemini_set_scores:
+                    set_scores[k] = int(gemini_set_scores[k])
+
+        # Adopt Gemini's full 6-set detailed analysis
+        gemini_detailed = gemini_intel.get("detailed_sets", {})
+        if isinstance(gemini_detailed, dict) and gemini_detailed:
+            for k, val in gemini_detailed.items():
+                if isinstance(val, dict):
+                    detailed_sets[k] = val
+
+        # Adopt Gemini's dynamic scoring breakdown table
+        gemini_breakdown = gemini_intel.get("scoring_breakdown", [])
+        if isinstance(gemini_breakdown, list) and gemini_breakdown:
+            scoring_breakdown = gemini_breakdown
+
+        # Adopt Gemini's recommendations & tailored server configs
+        if gemini_intel.get("recommendations"):
+            recommendations = gemini_intel["recommendations"]
+        server_hardening = gemini_intel.get("server_hardening", {})
 
         # Enrich findings with Gemini AI Insights and tailored remediation
         intel_map = {f.get("title", "").lower().strip(): f for f in gemini_intel.get("intelligent_findings", [])}
@@ -194,7 +210,6 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
                     rf["remediation_code"] = matched.get("remediation_code")
                     rf["remediation_type"] = matched.get("remediation_type", "nginx")
 
-    recommendations = [f.get("remediation_text") for f in remediated_findings if f.get("remediation_text") and "Consult" not in f.get("remediation_text")]
     if not recommendations:
         recommendations = [
             "Add HTTP Strict-Transport-Security (HSTS) with preload directive.",
@@ -230,6 +245,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         "recommendations": recommendations,
         "detailed_sets": detailed_sets,
         "scoring_breakdown": scoring_breakdown,
+        "server_hardening": server_hardening,
         "findings": remediated_findings,
         "remediations": ready_fixes,
         "raw_results": worker_results_dict,
