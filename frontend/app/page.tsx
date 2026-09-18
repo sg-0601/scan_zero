@@ -265,6 +265,7 @@ export default function Home() {
       attackChain: rJson.attack_chain || rJson.gemini_intelligence?.attack_chain,
       serverHardening: rJson.server_hardening || rJson.gemini_intelligence?.server_hardening,
       readyToDeployFixes: rJson.remediations || rJson.gemini_intelligence?.ready_to_deploy_fixes,
+      multiSiteComparisonInsight: rJson.multi_site_comparison_insight || rJson.gemini_intelligence?.multi_site_comparison_insight,
     };
   }
 
