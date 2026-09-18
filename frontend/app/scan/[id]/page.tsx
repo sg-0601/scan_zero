@@ -9,7 +9,7 @@ import ScanProgress from "@/components/ScanProgress";
 import RadarChart from "@/components/RadarChart";
 import KillChainGraph from "@/components/KillChainGraph";
 import RemediationCard from "@/components/RemediationCard";
-import { Download, Globe, Activity, ShieldCheck, AlertCircle, RefreshCw } from "lucide-react";
+import { Download, Globe, Activity, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
 
 export default function ScanResultsPage() {
@@ -169,7 +169,7 @@ export default function ScanResultsPage() {
             </h3>
             <p className="text-xs text-gray-500 mb-2">Target domain vs industry benchmark</p>
           </div>
-          <RadarChart mainTarget={targetDomain} />
+          <RadarChart mainTarget={targetDomain} scores={setScores} />
         </div>
       </div>
 
@@ -191,28 +191,40 @@ export default function ScanResultsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <RemediationCard
-            title="Strict Transport Security (HSTS Preload)"
-            description="Forces browsers to establish HTTPS connections only, preventing SSL stripping."
-            language="nginx"
-            code={`# Nginx configuration block
-add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-Frame-Options "SAMEORIGIN" always;`}
-          />
+        {(() => {
+          const remediationsList = rawResults?.remediations || (findings || []).filter((f: any) => f.remediation_code).map((f: any) => ({
+            title: f.title || "Vulnerability Fix",
+            description: f.description || "Deploy configuration update to resolve this security posture gap.",
+            language: f.remediation_type || "nginx",
+            code: f.remediation_code
+          }));
 
-          <RemediationCard
-            title="Cloudflare WAF Expression Rule"
-            description="Blocks malicious canary probes and automated bot traversal on internal paths."
-            language="json"
-            code={`{
-  "description": "ScanZero Auto-Defense Rule",
-  "expression": "(http.request.uri.path contains \\"/wp-admin\\" or http.request.uri.path contains \\"/.env\\") and not ip.src in {your_ip}",
-  "action": "block"
-}`}
-          />
-        </div>
+          if (remediationsList.length === 0) {
+            return (
+              <div className="bg-white/80 border border-emerald-500/30 rounded-2xl p-8 text-center">
+                <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-500" />
+                <h3 className="font-bold text-lg text-gray-900">Zero Critical Misconfigurations Detected</h3>
+                <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+                  All examined cryptographic handshakes, HTTP security headers, and DNS anti-spoofing policies comply with security standards.
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {remediationsList.map((rem: any, idx: number) => (
+                <RemediationCard
+                  key={idx}
+                  title={rem.title}
+                  description={rem.description}
+                  language={rem.language || rem.remediation_type || "nginx"}
+                  code={rem.code}
+                />
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Findings Table */}
@@ -224,28 +236,7 @@ add_header X-Frame-Options "SAMEORIGIN" always;`}
           </p>
         </div>
         
-        <FindingsTable findings={findings.length > 0 ? findings : [
-          {
-            id: "f1",
-            title: "Missing HTTP Strict Transport Security (HSTS)",
-            severity: "High",
-            category: "Headers",
-            tool: "w3_headers",
-            description: "The application is missing the Strict-Transport-Security header. This makes it vulnerable to SSL-stripping attacks.",
-            remediation_code: "add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;",
-            remediation_type: "nginx"
-          },
-          {
-            id: "f2",
-            title: "DMARC Policy Not Set to Reject",
-            severity: "Medium",
-            category: "DNS",
-            tool: "w4_dns",
-            description: "No strict DMARC rejection policy found. Your domain could be used for email spoofing.",
-            remediation_code: "v=DMARC1; p=reject; rua=mailto:dmarc-reports@" + targetDomain,
-            remediation_type: "dns"
-          }
-        ]} />
+        <FindingsTable findings={findings} />
       </div>
     </div>
   );

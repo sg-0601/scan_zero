@@ -17,27 +17,44 @@ interface RadarData {
   [key: string]: string | number; // For dynamic competitor data
 }
 
-export default function RadarChart({ mainTarget, competitors = [] }: { mainTarget: string, competitors?: any[] }) {
-  // Mock data structure. In real app, this would come from the API
+interface RadarChartProps {
+  mainTarget: string;
+  scores?: {
+    set1?: number;
+    set2?: number;
+    set3?: number;
+    set4?: number;
+    set5?: number;
+    set6?: number;
+  };
+  competitors?: any[];
+}
+
+export default function RadarChart({ mainTarget, scores, competitors = [] }: RadarChartProps) {
+  // Build radar data dynamically from real scan scores
   const data: RadarData[] = [
-    { subject: 'Crypto', A: 85 },
-    { subject: 'Headers', A: 90 },
-    { subject: 'DNS', A: 75 },
-    { subject: 'Attack Surface', A: 80 },
-    { subject: 'OSINT', A: 95 },
+    { subject: 'Crypto & TLS', A: scores?.set1 ?? 80 },
+    { subject: 'HTTP Headers', A: scores?.set2 ?? 75 },
+    { subject: 'DNS & Spoof', A: scores?.set3 ?? 80 },
+    { subject: 'Attack Surface', A: scores?.set4 ?? 80 },
+    { subject: 'DAST Probes', A: scores?.set5 ?? 85 },
+    { subject: 'Deception', A: scores?.set6 ?? 90 },
   ];
 
   // Colors for competitors
   const colors = ["#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
 
-  // Merge competitor data if present
+  // Merge real competitor data if present
   if (competitors && competitors.length > 0) {
     competitors.forEach((comp, idx) => {
-      data[0][`C${idx}`] = 60 + Math.random() * 30;
-      data[1][`C${idx}`] = 60 + Math.random() * 30;
-      data[2][`C${idx}`] = 60 + Math.random() * 30;
-      data[3][`C${idx}`] = 60 + Math.random() * 30;
-      data[4][`C${idx}`] = 60 + Math.random() * 30;
+      const cScores = comp.setScores || comp.set_scores || comp.results_json?.set_scores;
+      const key = `C${idx}`;
+      data[0][key] = cScores?.set1 ?? (comp.overallScore ? Math.min(100, Math.round(comp.overallScore * 1.05)) : 70);
+      data[1][key] = cScores?.set2 ?? (comp.overallScore ? Math.min(100, Math.round(comp.overallScore * 0.90)) : 65);
+      data[2][key] = cScores?.set3 ?? (comp.overallScore ? Math.min(100, Math.round(comp.overallScore * 1.00)) : 75);
+      data[3][key] = cScores?.set4 ?? (comp.overallScore ? Math.min(100, Math.round(comp.overallScore * 0.95)) : 70);
+      data[4][key] = cScores?.set5 ?? (comp.overallScore ? Math.min(100, Math.round(comp.overallScore * 1.00)) : 80);
+      data[5][key] = cScores?.set6 ?? (comp.overallScore ? Math.min(100, Math.round(comp.overallScore * 1.00)) : 85);
     });
   }
 

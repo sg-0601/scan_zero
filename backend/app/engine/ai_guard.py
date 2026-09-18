@@ -52,18 +52,54 @@ async def check_epss(cve_id: str) -> float:
         pass
     return 0.5
 
+# In-memory cached CISA KEV catalog
+_cisa_kev_cache = set()
+_cisa_kev_loaded = False
+
+async def load_cisa_kev() -> set:
+    """Fetch and cache official CISA Known Exploited Vulnerabilities catalog."""
+    global _cisa_kev_cache, _cisa_kev_loaded
+    if _cisa_kev_loaded and _cisa_kev_cache:
+        return _cisa_kev_cache
+
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.get("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")
+            if resp.status_code == 200:
+                vulns = resp.json().get("vulnerabilities", [])
+                _cisa_kev_cache = {v.get("cveID", "").upper() for v in vulns if v.get("cveID")}
+                _cisa_kev_loaded = True
+                logger.info(f"Loaded {len(_cisa_kev_cache)} CISA KEV catalog entries")
+    except Exception as e:
+        logger.debug(f"CISA KEV fetch skipped: {e}")
+        
+    return _cisa_kev_cache
+
 async def check_cisa_kev(cve_id: str) -> bool:
-    """Check CISA Known Exploited Vulnerabilities catalog."""
-    return False
+    """Check if a CVE is listed in the CISA Known Exploited Vulnerabilities catalog."""
+    if not cve_id:
+        return False
+    kev_set = await load_cisa_kev()
+    return cve_id.strip().upper() in kev_set
 
 async def filter_findings(findings: list) -> list:
-    """Run critical findings through LLM verification in parallel without blocking."""
-    if not settings.GEMINI_API_KEY or not findings:
-        for f in findings:
-            f["is_false_positive"] = False
-        return findings
+    """Run critical findings through LLM verification and enrich CVEs with EPSS + CISA KEV."""
+    if not findings:
+        return []
 
-    # Only verify top critical/high findings (max 3) in parallel to respect 15 RPM rate limit
+    # 1. Enrich any CVE findings with real FIRST.org EPSS scores and CISA KEV status
+    for f in findings:
+        cves = f.get("evidence", {}).get("cves", [])
+        if isinstance(cves, list) and cves:
+            first_cve = str(cves[0])
+            epss = await check_epss(first_cve)
+            is_kev = await check_cisa_kev(first_cve)
+            f["epss_score"] = epss
+            f["cisa_kev"] = is_kev
+            f["evidence"]["epss_score"] = epss
+            f["evidence"]["cisa_kev"] = is_kev
+
+    # 2. Parallel LLM Verification for top Critical/High findings
     candidates = [f for f in findings if f.get("severity") in ("critical", "high")][:3]
     
     async def _check(f):
@@ -73,7 +109,7 @@ async def filter_findings(findings: list) -> list:
         except Exception:
             f["is_false_positive"] = False
 
-    if candidates:
+    if settings.GEMINI_API_KEY and candidates:
         await asyncio.gather(*[_check(f) for f in candidates], return_exceptions=True)
 
     for f in findings:

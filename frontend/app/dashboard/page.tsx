@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   ShieldCheck, 
@@ -13,8 +13,12 @@ import {
   Slack, 
   Mail, 
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Loader2,
+  RefreshCw
 } from "lucide-react";
+import toast from "react-hot-toast";
+import { API_BASE_URL } from "@/lib/config";
 
 interface MonitoredSite {
   id: string;
@@ -29,18 +33,10 @@ interface MonitoredSite {
 
 export default function DashboardPage() {
   const [newDomain, setNewDomain] = useState("");
-  const [monitoredSites, setMonitoredSites] = useState<MonitoredSite[]>([
-    {
-      id: "1",
-      domain: "example.com",
-      verified: true,
-      frequency: "daily",
-      lastScore: 78,
-      grade: "B",
-      lastScanned: "Today, 02:30 PM",
-      verificationToken: "scanzero-verify=scan_938a7d10e4f",
-    },
-  ]);
+  const [monitoredSites, setMonitoredSites] = useState<MonitoredSite[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   const [alertChannels, setAlertChannels] = useState({
     email: true,
@@ -49,32 +45,81 @@ export default function DashboardPage() {
     scoreDropThreshold: 5,
   });
 
-  const handleAddDomain = (e: React.FormEvent) => {
+  const fetchTrackedDomains = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE_URL}/api/monitor/tracked`);
+      if (res.ok) {
+        const data = await res.json();
+        setMonitoredSites(data.map((item: any) => ({
+          id: item.id,
+          domain: item.domain,
+          verified: Boolean(item.verified),
+          frequency: item.frequency || "daily",
+          lastScore: item.last_score || 0,
+          grade: item.grade || (item.verified ? "A" : "-"),
+          lastScanned: item.lastScanned || "Pending initial audit",
+          verificationToken: item.verificationToken || "",
+        })));
+      }
+    } catch (err: any) {
+      console.error("Failed to load tracked domains:", err);
+      toast.error("Could not load tracked domains from database.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTrackedDomains();
+  }, []);
+
+  const handleAddDomain = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDomain.trim()) return;
 
     const cleanDomain = newDomain.replace(/^(https?:\/\/)/, "").replace(/\/.*$/, "").toLowerCase();
-    const newEntry: MonitoredSite = {
-      id: Date.now().toString(),
-      domain: cleanDomain,
-      verified: false,
-      frequency: "daily",
-      lastScore: 0,
-      grade: "-",
-      lastScanned: "Pending initial audit",
-      verificationToken: `scanzero-verify=scan_${Math.random().toString(36).substring(2, 12)}`,
-    };
+    setIsAdding(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/monitor/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: cleanDomain, frequency: "daily" }),
+      });
 
-    setMonitoredSites([newEntry, ...monitoredSites]);
-    setNewDomain("");
+      if (!res.ok) throw new Error("Failed to register domain for monitoring");
+
+      toast.success(`Domain ${cleanDomain} added to monitoring!`);
+      setNewDomain("");
+      await fetchTrackedDomains();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add domain to monitor");
+    } finally {
+      setIsAdding(false);
+    }
   };
 
-  const handleVerify = (id: string) => {
-    setMonitoredSites(
-      monitoredSites.map((site) =>
-        site.id === id ? { ...site, verified: true, lastScore: 82, grade: "A", lastScanned: "Just now" } : site
-      )
-    );
+  const handleVerify = async (site: MonitoredSite) => {
+    setVerifyingId(site.id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/monitor/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: site.domain, token: site.verificationToken, force: true }),
+      });
+
+      const data = await res.json();
+      if (data.verified) {
+        toast.success(`Domain ${site.domain} ownership successfully verified!`);
+        await fetchTrackedDomains();
+      } else {
+        toast.error(data.message || "DNS verification failed. Ensure TXT record has propagated.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Verification request failed.");
+    } finally {
+      setVerifyingId(null);
+    }
   };
 
   return (
@@ -135,68 +180,85 @@ export default function DashboardPage() {
           Tracked Domains &amp; Ownership Status
         </h2>
 
-        {monitoredSites.map((site) => (
-          <div
-            key={site.id}
-            className="bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6"
-          >
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="text-lg font-bold text-gray-900">{site.domain}</span>
-                {site.verified ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-whitemerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Ownership Verified
-                  </span>
+        {isLoading ? (
+          <div className="p-8 text-center bg-white/80 border border-gray-200 rounded-2xl flex items-center justify-center gap-3 text-gray-500">
+            <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
+            <span>Loading monitored domains...</span>
+          </div>
+        ) : monitoredSites.length === 0 ? (
+          <div className="p-12 text-center bg-white/80 border border-gray-200 rounded-2xl">
+            <Clock className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+            <h3 className="font-bold text-gray-800 text-lg">No Monitored Domains Yet</h3>
+            <p className="text-sm text-gray-500 max-w-md mx-auto mt-1">
+              Add your production domain above to track your security posture 24/7 and receive instant alerts when vulnerabilities appear.
+            </p>
+          </div>
+        ) : (
+          monitoredSites.map((site) => (
+            <div
+              key={site.id}
+              className="bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-gray-900">{site.domain}</span>
+                  {site.verified ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Ownership Verified
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Verification Required
+                    </span>
+                  )}
+                </div>
+
+                {!site.verified ? (
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/80 text-xs text-gray-600">
+                    <p className="font-semibold text-amber-600 mb-1">Add this DNS TXT record to your domain:</p>
+                    <code className="px-2 py-1 bg-white rounded font-mono text-teal-600 block select-all">
+                      {site.verificationToken}
+                    </code>
+                  </div>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Verification Required
-                  </span>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span>Frequency: <strong className="text-gray-800 capitalize">{site.frequency}</strong></span>
+                    <span>&bull;</span>
+                    <span>Last Audit: <strong className="text-gray-800">{site.lastScanned}</strong></span>
+                  </div>
                 )}
               </div>
 
-              {!site.verified ? (
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/80 text-xs text-gray-600">
-                  <p className="font-semibold text-amber-400 mb-1">Add this DNS TXT record to your domain:</p>
-                  <code className="px-2 py-1 bg-white rounded font-mono text-teal-600 block select-all">
-                    {site.verificationToken}
-                  </code>
-                </div>
-              ) : (
-                <div className="flex items-center gap-4 text-xs text-gray-500">
-                  <span>Frequency: <strong className="text-gray-800 capitalize">{site.frequency}</strong></span>
-                  <span>&bull;</span>
-                  <span>Last Audit: <strong className="text-gray-800">{site.lastScanned}</strong></span>
-                </div>
-              )}
-            </div>
+              <div className="flex items-center gap-4">
+                {site.verified ? (
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-teal-600">{site.lastScore}%</div>
+                      <div className="text-[10px] font-mono text-gray-500">Grade: {site.grade}</div>
+                    </div>
 
-            <div className="flex items-center gap-4">
-              {site.verified ? (
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <div className="text-2xl font-black text-teal-600">{site.lastScore}%</div>
-                    <div className="text-[10px] font-mono text-gray-500">Grade: {site.grade}</div>
+                    <Link
+                      href={`/?domain=${encodeURIComponent(site.domain)}`}
+                      className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200 transition-colors"
+                      title="View Latest Audit"
+                    >
+                      <ExternalLink className="w-4 h-4 text-teal-600" />
+                    </Link>
                   </div>
-
-                  <Link
-                    href={`/scan/demo`}
-                    className="p-3 rounded-xl bg-gray-100 hover:bg-slate-700 text-gray-800 border border-gray-200 transition-colors"
-                    title="View Latest Audit"
+                ) : (
+                  <button
+                    onClick={() => handleVerify(site)}
+                    disabled={verifyingId === site.id}
+                    className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
                   >
-                    <ExternalLink className="w-4 h-4 text-teal-600" />
-                  </Link>
-                </div>
-              ) : (
-                <button
-                  onClick={() => handleVerify(site.id)}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-gray-900 text-xs font-bold transition-all shadow-md"
-                >
-                  Verify Ownership Proof
-                </button>
-              )}
+                    {verifyingId === site.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    <span>Verify Ownership Proof</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Alert Engine Channels Card (Stage 9C) */}

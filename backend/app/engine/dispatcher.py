@@ -59,6 +59,22 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         worker_results_dict[w.name] = res
         all_findings.extend(res.get("findings", []))
         
+    # 0. WAF Detection via WAFW00F
+    try:
+        from app.utils.stealth import detect_waf
+        waf_res = await asyncio.get_event_loop().run_in_executor(None, detect_waf, domain)
+        worker_results_dict["waf"] = waf_res
+        if waf_res.get("waf_detected"):
+            all_findings.append({
+                "title": f"Web Application Firewall Active ({waf_res.get('waf_name', 'Active')})",
+                "description": f"Domain is protected by {waf_res.get('waf_name', 'WAF')}, shielding backend infrastructure from direct exploit payloads.",
+                "severity": "info",
+                "category": "headers",
+                "evidence": waf_res
+            })
+    except Exception as e:
+        logger.debug(f"WAF detection skipped: {e}")
+
     # --- Unreachable Domain Detection ---
     # Check if the key connectivity workers all failed or errored
     tls_status = worker_results_dict.get("w2_tls", {}).get("status", "missing")
@@ -140,11 +156,12 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     critical_issues = []
     
     for s_key, s_data in detailed_sets.items():
-        strengths.extend(s_data.get("positive_findings", []))
-        negatives = s_data.get("negative_findings", [])
-        weaknesses.extend(negatives)
-        if s_data.get("score", 100) < 60:
-            critical_issues.extend(negatives[:2])
+        pos = s_data.get("positiveFindings") or s_data.get("positive_findings", [])
+        neg = s_data.get("negativeFindings") or s_data.get("negative_findings", [])
+        strengths.extend(pos)
+        weaknesses.extend(neg)
+        if s_data.get("score", 100) < 65:
+            critical_issues.extend(neg[:2])
             
     if score >= 80:
         status_text = "Hardened against web attacks. Superior cryptographic posture and email defenses."
@@ -155,7 +172,13 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     
     # 9. Remediation Engine
     remediated_findings = generate_fixes(filtered_findings)
-    recommendations = [f.get("remediation", {}).get("action") for f in remediated_findings if f.get("remediation")]
+    recommendations = [f.get("remediation_text") for f in remediated_findings if f.get("remediation_text") and "Consult" not in f.get("remediation_text")]
+    if not recommendations:
+        recommendations = [
+            "Add HTTP Strict-Transport-Security (HSTS) with preload directive.",
+            "Deploy Content-Security-Policy (CSP) restricting script execution.",
+            "Upgrade DMARC policy to p=reject to eliminate domain impersonation."
+        ]
     
     final_result_data = {
         "scan_id": scan_id,

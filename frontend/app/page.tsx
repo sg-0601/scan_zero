@@ -707,6 +707,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+      </div>
 
     {/* COMPARE SITES SECTION */}
     <section id="comparison-preview" className="w-full py-20 px-4 sm:px-6 bg-white border-t border-gray-100">

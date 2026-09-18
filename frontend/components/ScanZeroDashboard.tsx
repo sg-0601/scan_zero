@@ -763,7 +763,9 @@ async function handleRequest(request) {
                         </div>
                         <div className="min-w-0">
                           <div className="text-[10px] font-mono text-gray-400 uppercase font-bold">Root CA Anchor</div>
-                          <div className="text-xs font-bold text-gray-900 truncate">ISRG Root X1 / DigiCert</div>
+                          <div className="text-xs font-bold text-gray-900 truncate">
+                            {(currentSite.detailedSets.set1 as any)?.issuer || "Public Trusted CA Anchor"}
+                          </div>
                           <div className="text-[10px] text-emerald-600 font-mono flex items-center gap-1 mt-0.5">
                             <CheckCircle2 className="w-3 h-3" /> Built-in OS Trust Store
                           </div>
@@ -781,10 +783,12 @@ async function handleRequest(request) {
                           <Server className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-[10px] font-mono text-gray-400 uppercase font-bold">Intermediate CA</div>
-                          <div className="text-xs font-bold text-gray-900 truncate">R3 / Global CA Authority</div>
+                          <div className="text-[10px] font-mono text-gray-400 uppercase font-bold">Intermediate CA Authority</div>
+                          <div className="text-xs font-bold text-gray-900 truncate">
+                            {((currentSite.detailedSets.set1 as any)?.issuer || "Global CA Authority") + " Intermediate"}
+                          </div>
                           <div className="text-[10px] text-teal-600 font-mono flex items-center gap-1 mt-0.5">
-                            <CheckCircle2 className="w-3 h-3" /> Intermediate Valid
+                            <CheckCircle2 className="w-3 h-3" /> Valid Trust Chain
                           </div>
                         </div>
                       </div>
@@ -801,9 +805,11 @@ async function handleRequest(request) {
                         </div>
                         <div className="min-w-0">
                           <div className="text-[10px] font-mono text-emerald-700 uppercase font-bold">Server Leaf Certificate</div>
-                          <div className="text-xs font-bold text-gray-900 truncate">*.{currentSite.domain}</div>
+                          <div className="text-xs font-bold text-gray-900 truncate">
+                            {(currentSite.detailedSets.set1 as any)?.subject || `*.${currentSite.domain}`}
+                          </div>
                           <div className="text-[10px] text-emerald-600 font-mono flex items-center gap-1 mt-0.5">
-                            <CheckCircle2 className="w-3 h-3" /> Valid TLS 1.3 Active
+                            <CheckCircle2 className="w-3 h-3" /> {currentSite.detailedSets.set1.metricValue || "TLS Handshake Active"}
                           </div>
                         </div>
                       </div>
@@ -1103,37 +1109,44 @@ async function handleRequest(request) {
                           <th className="p-3">Expected Score Gain</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/80">
-                        <tr>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-200">
-                              HIGH
-                            </span>
-                          </td>
-                          <td className="p-3 font-medium text-gray-900">Implement Strict HSTS Preload header in Web Server</td>
-                          <td className="p-3 text-teal-600">Set 2: Headers</td>
-                          <td className="p-3 text-emerald-400 font-mono font-bold">+8 Points</td>
-                        </tr>
-                        <tr>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                              MEDIUM
-                            </span>
-                          </td>
-                          <td className="p-3 font-medium text-gray-900">Enforce DMARC rejection policy (p=reject) in DNS</td>
-                          <td className="p-3 text-teal-600">Set 3: DNS</td>
-                          <td className="p-3 text-emerald-400 font-mono font-bold">+6 Points</td>
-                        </tr>
-                        <tr>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                              LOW
-                            </span>
-                          </td>
-                          <td className="p-3 font-medium text-gray-900">Set Cookie flag SameSite=Strict on session identifiers</td>
-                          <td className="p-3 text-teal-600">Set 2: Headers</td>
-                          <td className="p-3 text-emerald-400 font-mono font-bold">+3 Points</td>
-                        </tr>
+                      <tbody className="divide-y divide-gray-100">
+                        {currentSite.scoringBreakdown.filter(b => b.max - b.earned > 0).length > 0 ? (
+                          currentSite.scoringBreakdown
+                            .filter(b => b.max - b.earned > 0)
+                            .map((item, idx) => {
+                              const penalty = item.max - item.earned;
+                              const priority = penalty >= 10 ? "HIGH" : penalty >= 5 ? "MEDIUM" : "LOW";
+                              const badgeStyle = priority === "HIGH" 
+                                ? "bg-rose-50 text-rose-600 border-rose-200" 
+                                : priority === "MEDIUM" 
+                                ? "bg-amber-50 text-amber-600 border-amber-200" 
+                                : "bg-blue-50 text-blue-600 border-blue-200";
+
+                              return (
+                                <tr key={idx}>
+                                  <td className="p-3">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badgeStyle}`}>
+                                      {priority}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 font-medium text-gray-900">{item.improvement}</td>
+                                  <td className="p-3 text-teal-600">{item.category}</td>
+                                  <td className="p-3 text-emerald-600 font-mono font-bold">+{penalty} Points</td>
+                                </tr>
+                              );
+                            })
+                        ) : (
+                          <tr>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                PASS
+                              </span>
+                            </td>
+                            <td className="p-3 font-medium text-gray-900">All core benchmarks satisfied; continuous monitoring active.</td>
+                            <td className="p-3 text-teal-600">All Sets</td>
+                            <td className="p-3 text-emerald-600 font-mono font-bold">Max Score</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1144,53 +1157,88 @@ async function handleRequest(request) {
         </main>
 
         {/* ========================================================= */}
-        {/* RIGHT ACTIVITY STREAM (Inspired directly by reference image) */}
+        {/* RIGHT ACTIVITY STREAM (Dynamic Telemetry from 6 Workers) */}
         {/* ========================================================= */}
         <aside className="lg:col-span-3 xl:col-span-3 space-y-6">
-          {/* Activity Stream Card (matching right side of reference image) */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
               <h3 className="text-xs font-mono font-bold text-teal-600 uppercase tracking-wider flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5" /> Intelligence Stream
               </h3>
-              <span className="text-[10px] font-mono text-gray-500">Live Audit</span>
+              <span className="text-[10px] font-mono text-gray-500">Live Telemetry</span>
             </div>
 
             <div className="space-y-3.5">
+              {/* Worker 1: OSINT */}
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-gray-700">Worker 1 &bull; OSINT &amp; Perimeter</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set4 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {currentSite.setScores.set4 >= 80 ? 'Passed' : 'Review'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set4?.metricValue || "Perimeter enumerated"}</p>
+                <div className="text-[10px] text-gray-400 font-mono">VirusTotal &bull; Shodan &bull; CT Logs</div>
+              </div>
+
+              {/* Worker 2: TLS */}
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-bold text-gray-700">Worker 2 &bull; TLS Handshake</span>
-                  <span className="text-emerald-400 text-[10px] font-mono">Passed</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set1 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {currentSite.setScores.set1 >= 80 ? 'Passed' : 'Notice'}
+                  </span>
                 </div>
-                <p className="text-[11px] text-gray-500">TLS 1.3 negotiated with AES-256-GCM cipher suite.</p>
-                <div className="text-[10px] text-gray-400 font-mono">0.14s latency</div>
+                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set1?.metricValue || "TLS Handshake active"}</p>
+                <div className="text-[10px] text-gray-400 font-mono">Port 443 &bull; Cipher validation</div>
               </div>
 
+              {/* Worker 3: Headers */}
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-bold text-gray-700">Worker 3 &bull; Header Audit</span>
-                  <span className="text-amber-400 text-[10px] font-mono">Notice</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set2 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {currentSite.setScores.set2 >= 80 ? 'Passed' : 'Notice'}
+                  </span>
                 </div>
-                <p className="text-[11px] text-gray-500">Missing CSP frame-ancestors directive.</p>
-                <div className="text-[10px] text-gray-400 font-mono">Port 443</div>
+                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set2?.metricValue || "Security headers checked"}</p>
+                <div className="text-[10px] text-gray-400 font-mono">CSP &bull; HSTS &bull; Cookies</div>
               </div>
 
+              {/* Worker 4: DNS */}
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-bold text-gray-700">Worker 4 &bull; DNS Resolver</span>
-                  <span className="text-emerald-400 text-[10px] font-mono">Verified</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set3 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {currentSite.setScores.set3 >= 80 ? 'Verified' : 'Notice'}
+                  </span>
                 </div>
-                <p className="text-[11px] text-gray-500">SPF record syntax verified (v=spf1 -all).</p>
-                <div className="text-[10px] text-gray-400 font-mono">Lookup count: 4/10</div>
+                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set3?.metricValue || "SPF & DMARC validated"}</p>
+                <div className="text-[10px] text-gray-400 font-mono">SPF &bull; DMARC &bull; DNSSEC</div>
               </div>
 
+              {/* Worker 5: DAST */}
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 6 &bull; Honeypot Check</span>
-                  <span className="text-teal-600 text-[10px] font-mono">Clean</span>
+                  <span className="font-bold text-gray-700">Worker 5 &bull; DAST &amp; Probes</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set5 >= 80 ? 'text-teal-600' : 'text-rose-600'}`}>
+                    {currentSite.setScores.set5 >= 80 ? 'Clean' : 'Alert'}
+                  </span>
                 </div>
-                <p className="text-[11px] text-gray-500">Random canary returned 404. Non-tarpit host.</p>
-                <div className="text-[10px] text-gray-400 font-mono">Deception score: 0.05</div>
+                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set5?.metricValue || "Sensitive paths probed"}</p>
+                <div className="text-[10px] text-gray-400 font-mono">.env &bull; .git &bull; backups</div>
+              </div>
+
+              {/* Worker 6: Honeypot */}
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-gray-700">Worker 6 &bull; Deception &amp; Canary</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set6 >= 80 ? 'text-teal-600' : 'text-amber-600'}`}>
+                    {currentSite.setScores.set6 >= 80 ? 'Clean' : 'Deception'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set6?.metricValue || "Authentic host verified"}</p>
+                <div className="text-[10px] text-gray-400 font-mono">Canary URI &bull; Tarpit check</div>
               </div>
             </div>
           </div>
