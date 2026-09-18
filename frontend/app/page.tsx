@@ -168,8 +168,8 @@ export default function Home() {
         }
       }
 
-      // Poll every 1.2s for completion (up to 30s)
-      for (let attempt = 0; attempt < 25; attempt++) {
+      // Poll every 1.2s for completion (up to 60s — Render free tier needs 30-45s cold start)
+      for (let attempt = 0; attempt < 50; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         try {
           const getRes = await fetch(`${API_BASE_URL}/api/scan/${scanId}`);

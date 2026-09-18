@@ -22,12 +22,12 @@ export default function ScanProgress({ workers = [] }: { workers?: WorkerStatus[
   }, []);
 
   const defaultWorkers: WorkerStatus[] = workers.length > 0 ? workers : [
-    { id: "w1", name: "OSINT Intelligence", status: "running" },
-    { id: "w2", name: "TLS / Crypto", status: "waiting" },
-    { id: "w3", name: "DNS / SPF / DMARC", status: "waiting" },
-    { id: "w4", name: "Headers / Config", status: "waiting" },
-    { id: "w5", name: "DAST Analysis", status: "waiting" },
-    { id: "w6", name: "AI Verification", status: "waiting" },
+    { id: "w1", name: "1. OSINT & Threat Intel (VT, Shodan, OTX)", status: elapsed > 2 ? "done" : "running" },
+    { id: "w2", name: "2. TLS Cryptography & Ciphers", status: elapsed > 5 ? "done" : elapsed > 1 ? "running" : "waiting" },
+    { id: "w3", name: "3. HTTP Security Headers & Cookies", status: elapsed > 8 ? "done" : elapsed > 3 ? "running" : "waiting" },
+    { id: "w4", name: "4. DNS & Email Spoofing Defense", status: elapsed > 11 ? "done" : elapsed > 5 ? "running" : "waiting" },
+    { id: "w5", name: "5. Active DAST Surface Probes", status: elapsed > 14 ? "done" : elapsed > 8 ? "running" : "waiting" },
+    { id: "w6", name: "6. Google Gemini AI Synthesis (gemini-3.8-flash)", status: elapsed > 15 ? "running" : "waiting" },
   ];
 
   const runningWorkers = defaultWorkers.filter(w => w.status === "running" || w.status === "done").length;

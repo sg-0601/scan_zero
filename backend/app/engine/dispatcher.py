@@ -19,6 +19,7 @@ from app.engine.scoring import (
     generate_scoring_breakdown
 )
 from app.engine.remediation import generate_fixes
+from app.engine.gemini_analyzer import synthesize_scan_intelligence
 from app.engine.cache import set_cached_scan
 from app.models.database import AsyncSessionLocal
 from app.models.scan import ScanResult
@@ -138,40 +139,61 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     if is_honeypot:
         logger.warning(f"Honeypot detected for {domain}")
         
-    # 7. AI Guard
+    # 7. AI Guard (EPSS and CISA KEV enrichment)
     filtered_findings = await filter_findings(all_findings)
-    
-    # 8. Multi-Set Scoring Engine
-    set_scores = calculate_category_scores(filtered_findings, worker_results_dict)
-    score = calculate_score(filtered_findings, worker_results_dict, set_scores)
-    grade = assign_grade(score)
-    
-    # Generate transparent explanations for Set 1-6
-    detailed_sets = generate_detailed_sets(domain, worker_results_dict, set_scores)
-    scoring_breakdown = generate_scoring_breakdown(domain, filtered_findings, set_scores)
-    
-    # Extract strengths & critical issues
-    strengths = []
-    weaknesses = []
-    critical_issues = []
-    
-    for s_key, s_data in detailed_sets.items():
-        pos = s_data.get("positiveFindings") or s_data.get("positive_findings", [])
-        neg = s_data.get("negativeFindings") or s_data.get("negative_findings", [])
-        strengths.extend(pos)
-        weaknesses.extend(neg)
-        if s_data.get("score", 100) < 65:
-            critical_issues.extend(neg[:2])
-            
-    if score >= 80:
-        status_text = "Hardened against web attacks. Superior cryptographic posture and email defenses."
-    elif score >= 60:
-        status_text = "Moderate security posture. Review recommended security headers and email enforcement."
-    else:
-        status_text = "Elevated risk surface. Missing critical transport layer defenses and baseline headers."
-    
-    # 9. Remediation Engine
     remediated_findings = generate_fixes(filtered_findings)
+    
+    # 8. Baseline Heuristic Scoring (used as robust mathematical baseline)
+    set_scores = calculate_category_scores(remediated_findings, worker_results_dict)
+    score = calculate_score(remediated_findings, worker_results_dict, set_scores)
+    grade = assign_grade(score)
+    detailed_sets = generate_detailed_sets(domain, worker_results_dict, set_scores)
+    scoring_breakdown = generate_scoring_breakdown(domain, remediated_findings, set_scores)
+
+    # 9. Google Gemini Multi-Tool Intelligence Synthesis Engine
+    logger.info(f"Passing multi-tool telemetry for {domain} into Google Gemini Intelligence Engine...")
+    try:
+        gemini_intel = await synthesize_scan_intelligence(domain, url, worker_results_dict, remediated_findings)
+    except Exception as e:
+        logger.error(f"Gemini intelligence synthesis encountered exception: {e}", exc_info=True)
+        from app.engine.gemini_analyzer import generate_fallback_intelligence
+        gemini_intel = generate_fallback_intelligence(domain, url, worker_results_dict, remediated_findings)
+
+    # 10. Harmonize Final Results with Gemini's AI Intelligence
+    if gemini_intel:
+        if "ai_score" in gemini_intel and gemini_intel.get("ai_score") is not None:
+            score = int(gemini_intel["ai_score"])
+            grade = gemini_intel.get("ai_grade") or assign_grade(score)
+        
+        status_text = gemini_intel.get("threat_verdict") or (
+            "Hardened against web attacks. Superior cryptographic posture and email defenses." if score >= 80 else
+            "Moderate security posture. Review recommended security headers and email enforcement." if score >= 60 else
+            "Elevated risk surface. Missing critical transport layer defenses and baseline headers."
+        )
+        
+        strengths = gemini_intel.get("strengths") or ["Core transport encryption verified."]
+        critical_issues = gemini_intel.get("critical_risks") or []
+        
+        cat_scores = gemini_intel.get("category_scores", {})
+        if cat_scores:
+            set_scores = {
+                "set1": cat_scores.get("crypto_tls", {}).get("score", set_scores.get("set1", 80)),
+                "set2": cat_scores.get("headers_config", {}).get("score", set_scores.get("set2", 70)),
+                "set3": cat_scores.get("dns_email", {}).get("score", set_scores.get("set3", 75)),
+                "set4": cat_scores.get("surface_intel", {}).get("score", set_scores.get("set4", 80)),
+            }
+
+        # Enrich findings with Gemini AI Insights and tailored remediation
+        intel_map = {f.get("title", "").lower().strip(): f for f in gemini_intel.get("intelligent_findings", [])}
+        for rf in remediated_findings:
+            title_key = rf.get("title", "").lower().strip()
+            matched = intel_map.get(title_key)
+            if matched:
+                rf["ai_insight"] = matched.get("ai_insight")
+                if matched.get("remediation_code") and not rf.get("remediation_code"):
+                    rf["remediation_code"] = matched.get("remediation_code")
+                    rf["remediation_type"] = matched.get("remediation_type", "nginx")
+
     recommendations = [f.get("remediation_text") for f in remediated_findings if f.get("remediation_text") and "Consult" not in f.get("remediation_text")]
     if not recommendations:
         recommendations = [
@@ -180,6 +202,20 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
             "Upgrade DMARC policy to p=reject to eliminate domain impersonation."
         ]
     
+    # Ready-to-deploy fixes from Gemini or findings
+    ready_fixes = gemini_intel.get("ready_to_deploy_fixes", []) if gemini_intel else []
+    if not ready_fixes:
+        ready_fixes = [
+            {
+                "title": f.get("title", "Fix Configuration"),
+                "target": "Web Server",
+                "type": f.get("remediation_type", "nginx"),
+                "code": f.get("remediation_code", ""),
+                "explanation": f.get("description", "")
+            }
+            for f in remediated_findings if f.get("remediation_code")
+        ]
+
     final_result_data = {
         "scan_id": scan_id,
         "domain": domain,
@@ -189,13 +225,19 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         "status_text": status_text,
         "set_scores": set_scores,
         "strengths": strengths or ["Basic network connectivity verified."],
-        "weaknesses": weaknesses or ["No significant security warnings detected."],
+        "weaknesses": critical_issues or ["No immediate exploit vectors detected."],
         "critical_issues": critical_issues,
         "recommendations": recommendations,
         "detailed_sets": detailed_sets,
         "scoring_breakdown": scoring_breakdown,
         "findings": remediated_findings,
+        "remediations": ready_fixes,
         "raw_results": worker_results_dict,
+        "gemini_intelligence": gemini_intel,
+        "executive_summary": gemini_intel.get("executive_summary") if gemini_intel else None,
+        "attacker_perspective": gemini_intel.get("attacker_perspective") if gemini_intel else None,
+        "attack_chain": gemini_intel.get("attack_chain") if gemini_intel else [],
+        "remediation_roadmap": gemini_intel.get("remediation_roadmap") if gemini_intel else {},
         "completed_at": datetime.utcnow().isoformat()
     }
 

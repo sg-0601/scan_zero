@@ -11,32 +11,32 @@ async def verify_with_llm(finding: dict, evidence: dict) -> bool:
     if not settings.GEMINI_API_KEY:
         return False
         
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={settings.GEMINI_API_KEY}"
-        prompt = (
-            f"Given this security finding: '{finding.get('title')}' and evidence: {json.dumps(evidence)}. "
-            "Is this a genuine security vulnerability or likely a false positive? Reply only with 'GENUINE' or 'FALSE_POSITIVE'."
-        )
-        payload = {
-            "contents": [
-                {
-                    "parts": [{"text": prompt}]
-                }
-            ]
-        }
-        
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.post(url, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                return "FALSE_POSITIVE" in text
-            else:
-                logger.warning(f"Gemini API returned status {resp.status_code}")
-                return False
-    except Exception as e:
-        logger.warning(f"LLM verification skipped: {e}")
-        return False
+    models = [settings.GEMINI_PRIMARY_MODEL, "gemini-3.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest"]
+    for model in models:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+            prompt = (
+                f"Given this security finding: '{finding.get('title')}' and evidence: {json.dumps(evidence)}. "
+                "Is this a genuine security vulnerability or likely a false positive? Reply only with 'GENUINE' or 'FALSE_POSITIVE'."
+            )
+            payload = {
+                "contents": [
+                    {
+                        "parts": [{"text": prompt}]
+                    }
+                ]
+            }
+            
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    return "FALSE_POSITIVE" in text
+                else:
+                    logger.debug(f"Gemini API model {model} returned status {resp.status_code}")
+        except Exception as e:
+            logger.debug(f"LLM verification on {model} skipped: {e}")
 
 async def check_epss(cve_id: str) -> float:
     """Query FIRST.org EPSS API for exploit probability score."""

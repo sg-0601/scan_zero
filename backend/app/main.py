@@ -8,6 +8,7 @@ from app.config import settings
 from app.models.database import engine, create_tables
 from app.api.scan import router as scan_router
 from app.api.monitor import router as monitor_router
+from app.api.health import router as health_router
 
 logger = logging.getLogger(__name__)
 
@@ -61,3 +62,4 @@ async def health_check():
 # Include routers for 1-Click Scan & Stage 9 Continuous Watch
 app.include_router(scan_router, prefix="/api", tags=["scan"])
 app.include_router(monitor_router, prefix="/api", tags=["monitor"])
+app.include_router(health_router, prefix="/api", tags=["health"])

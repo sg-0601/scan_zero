@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     # Core Active Keys
     SHODAN_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    GEMINI_PRIMARY_MODEL: str = "gemini-3.8-flash"
+    GEMINI_FALLBACK_MODELS: str = "gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest"
     SECRET_KEY: str = "supersecretkey"
 
     # World-Class Free Alternative Threat Intel API Keys

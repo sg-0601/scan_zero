@@ -161,3 +161,33 @@ async def websocket_endpoint(websocket: WebSocket, scan_id: str):
     except WebSocketDisconnect:
         if scan_id in active_connections:
             del active_connections[scan_id]
+
+class AskGeminiRequest(BaseModel):
+    question: str
+    history: list[dict] = []
+
+@router.post("/scan/{scan_id}/ask")
+async def ask_scan_gemini(scan_id: str, req: AskGeminiRequest):
+    """Allow user to query Google Gemini directly about this scan's findings and remediation."""
+    scan_data = None
+    try:
+        uid = uuid.UUID(scan_id)
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(ScanResult).where(ScanResult.id == uid))
+            scan = result.scalar_one_or_none()
+            if scan and scan.results_json:
+                scan_data = scan.results_json
+    except Exception:
+        pass
+
+    if not scan_data and scan_id in MEMORY_SCANS:
+        scan_data = MEMORY_SCANS[scan_id].get("results_json")
+
+    if not scan_data:
+        raise HTTPException(status_code=404, detail="Scan results not ready or scan not found")
+
+    domain = scan_data.get("domain", "Target Website")
+    from app.engine.gemini_analyzer import ask_gemini_scan_assistant
+    answer_data = await ask_gemini_scan_assistant(domain, scan_data, req.question, req.history)
+    return answer_data
+

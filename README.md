@@ -57,6 +57,41 @@ docker-compose --profile full up
 
 ---
 
+## 🧪 Testing & Verifying Your APIs
+
+ScanZero includes an automated test suite and CLI health diagnostic runner to check that all your external APIs and threat engines are working:
+
+### 1. Instant CLI Health Diagnostic
+Run anytime to check authentication, quotas, and response times in seconds:
+```bash
+python check_apis.py
+```
+Or test a specific domain:
+```bash
+python check_apis.py --domain example.com
+```
+Inside Docker container:
+```bash
+docker exec scanzero-backend python check_apis.py
+```
+
+### 2. Comprehensive Automated Pytest Suite
+Run the full async test suite with detailed schema and assertion validation:
+```bash
+python -m pytest backend/tests/test_apis.py
+```
+Inside Docker container:
+```bash
+docker exec scanzero-backend pytest tests/test_apis.py
+```
+
+### 3. Live Browser / REST Endpoint
+When the backend container is running, check operational status anytime via HTTP:
+- **Browser / Curl:** `http://localhost:8000/api/health/apis`
+- Returns real-time latency and status for all 11+ threat intelligence services.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
