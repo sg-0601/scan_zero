@@ -53,7 +53,7 @@ import {
 
 export interface AnalyzedItem {
   item: string;
-  status: "PASS" | "FAIL" | "WARN";
+  status: "PASS" | "FAIL" | "WARN" | string;
   details: string;
 }
 
@@ -66,7 +66,7 @@ export interface NegativeRemediationGuide {
 export interface WorkerIntelligenceItem {
   worker_name: string;
   section_id: string;
-  status: "Passed" | "Warning" | "Failed" | "Notice";
+  status: "Passed" | "Warning" | "Failed" | "Notice" | string;
   metric_value: string;
   summary: string;
   tools: string;
@@ -82,7 +82,7 @@ export interface WebsiteResult {
     solution?: string;
     evidence?: { param?: string; url?: string; cweid?: string; instances?: number };
   }>;
-  workerIntelligenceStream?: Record<string, WorkerIntelligenceItem>;
+  workerIntelligenceStream?: Record<string, any>;
   url: string;
   domain: string;
   overallScore: number;
@@ -100,55 +100,7 @@ export interface WebsiteResult {
   weaknesses: string[];
   criticalIssues: string[];
   recommendations: string[];
-  detailedSets: {
-    [key: string]: {
-      name: string;
-      score: number;
-      grade: string;
-      analyzedItems: (string | AnalyzedItem)[];
-      analyzed_items?: AnalyzedItem[];
-      negativeFindings: string[];
-      negative_remediation_guides?: NegativeRemediationGuide[];
-      negativeRemediationGuides?: NegativeRemediationGuide[];
-      positiveFindings: string[];
-      whyScoreGiven: string;
-      evidence: string;
-      recommendation: string;
-      metricValue: string;
-      issuer?: string;
-      subject?: string;
-      protocol?: string;
-      cipher?: string;
-      days_until_expiry?: number;
-      trust_chain_status?: string;
-      missing_headers?: string[];
-      active_headers?: string[];
-      spf_record?: string;
-      spf_status?: string;
-      dmarc_record?: string;
-      dmarc_policy?: string;
-      dnssec_status?: string;
-      virustotal_stats?: string;
-      shodan_ports?: string[];
-      breach_intel?: string;
-      subdomain_count?: number;
-      probed_paths?: { path: string; status: string; verdict: string }[];
-      dast_verdict?: string;
-      zap_status?: string;
-      zap_alerts_count?: number;
-      zap_findings?: Array<{
-        name: string;
-        risk: string;
-        cweid?: string;
-        solution?: string;
-        param?: string;
-        url?: string;
-      }>;
-      canary_status?: string;
-      tarpit_status?: string;
-      host_authenticity?: string;
-    };
-  };
+  detailedSets: Record<string, any>;
   scoringBreakdown: {
     category: string;
     earned: number;

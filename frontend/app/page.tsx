@@ -371,7 +371,7 @@ export default function Home() {
     };
   }
 
-  function generateFallbackDetailedSets(domain: string, score: number, setScores: any) {
+  function generateFallbackDetailedSets(domain: string, score: number, setScores: any): Record<string, any> {
     return {
       set1: {
         name: "Set 1: Network & TLS Encryption",
