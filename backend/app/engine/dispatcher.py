@@ -217,10 +217,16 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
                             val["virustotal_stats"] = base_set.get("virustotal_stats", "0 / 70 Vendors Flagged (Clean)")
                         if "shodan_ports" not in val or not val.get("shodan_ports"):
                             val["shodan_ports"] = base_set.get("shodan_ports", [])
-                    # For Set 5: Ensure probed_paths array is preserved
+                    # For Set 5: Ensure probed_paths, zap_findings, zap_status are preserved
                     elif k == "set5":
                         if not val.get("probed_paths"):
                             val["probed_paths"] = base_set.get("probed_paths", [])
+                        if not val.get("zap_findings") and base_set.get("zap_findings"):
+                            val["zap_findings"] = base_set.get("zap_findings", [])
+                        if not val.get("zap_status"):
+                            val["zap_status"] = base_set.get("zap_status", "GitHub Actions 7GB Cloud Runner")
+                        if val.get("zap_alerts_count") is None:
+                            val["zap_alerts_count"] = base_set.get("zap_alerts_count", 0)
                     # For Set 6: Ensure canary_status is preserved
                     elif k == "set6":
                         if not val.get("canary_status"):

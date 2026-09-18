@@ -153,6 +153,7 @@ class DastWorker(BaseWorker):
 
         # 2. Check GitHub Actions Cloud ZAP runner if configured
         if settings.GITHUB_TOKEN:
+            from datetime import datetime
             repo = settings.GITHUB_REPO or "sg-0601/scan_zero"
             callback_url = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/api/scan/zap-callback" if settings.BACKEND_PUBLIC_URL else "Not configured"
             return {
@@ -160,9 +161,13 @@ class DastWorker(BaseWorker):
                 "mode": "github_cloud_runner",
                 "repo": repo,
                 "workflow": "zap-ondemand.yml",
-                "runner": "Ubuntu 7GB Cloud Runner (24/7 No Card)",
+                "runner": "GitHub Actions Ubuntu 7GB Cloud Runner (24/7 No Card)",
+                "target_url": url,
                 "callback_url": callback_url,
-                "message": "OWASP ZAP runs asynchronously via GitHub Actions cloud runner and streams findings back upon completion."
+                "dispatched": True,
+                "timestamp": datetime.utcnow().isoformat(),
+                "alerts_count": 0,
+                "alerts": []
             }
 
         return {"status": "skipped", "reason": "Neither local ZAP daemon nor GITHUB_TOKEN configured"}

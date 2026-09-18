@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/config";
 import {
   Shield,
   CheckCircle2,
@@ -51,6 +52,15 @@ import {
 } from "recharts";
 
 export interface WebsiteResult {
+  scanId?: string;
+  zapCompleted?: boolean;
+  zapAlerts?: Array<{
+    title: string;
+    description: string;
+    severity: string;
+    solution?: string;
+    evidence?: { param?: string; url?: string; cweid?: string; instances?: number };
+  }>;
   url: string;
   domain: string;
   overallScore: number;
@@ -99,6 +109,16 @@ export interface WebsiteResult {
       subdomain_count?: number;
       probed_paths?: { path: string; status: string; verdict: string }[];
       dast_verdict?: string;
+      zap_status?: string;
+      zap_alerts_count?: number;
+      zap_findings?: Array<{
+        name: string;
+        risk: string;
+        cweid?: string;
+        solution?: string;
+        param?: string;
+        url?: string;
+      }>;
       canary_status?: string;
       tarpit_status?: string;
       host_authenticity?: string;
@@ -129,11 +149,65 @@ interface ScanZeroDashboardProps {
 }
 
 export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashboardProps) {
+  const [siteResults, setSiteResults] = useState<WebsiteResult[]>(results);
   const [activeSection, setActiveSection] = useState<string>("overall");
   const [selectedSiteIndex, setSelectedSiteIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [selectedServerTab, setSelectedServerTab] = useState<"nginx" | "apache" | "cloudflare" | "caddy">("nginx");
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSiteResults(results);
+  }, [results]);
+
+  const isComparison = siteResults.length > 1;
+  const currentSite = siteResults[selectedSiteIndex] || siteResults[0];
+
+  // Silent background poller to stream in OWASP ZAP cloud results when GitHub Actions runner finishes
+  useEffect(() => {
+    if (!currentSite?.scanId || currentSite?.zapCompleted) return;
+
+    const poller = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/scan/${currentSite.scanId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const rJson = data.results_json;
+        if (rJson && rJson.zap_completed) {
+          setSiteResults(prev => prev.map((s, idx) => {
+            if (idx === selectedSiteIndex) {
+              return {
+                ...s,
+                overallScore: Math.round(data.score ?? rJson.score ?? s.overallScore),
+                grade: data.grade || rJson.grade || s.grade,
+                statusText: rJson.status_text || s.statusText,
+                setScores: rJson.set_scores || s.setScores,
+                detailedSets: rJson.detailed_sets || s.detailedSets,
+                scoringBreakdown: rJson.scoring_breakdown || s.scoringBreakdown,
+                executiveSummary: rJson.executive_summary || s.executiveSummary,
+                attackerPerspective: rJson.attacker_perspective || s.attackerPerspective,
+                attackChain: rJson.attack_chain || s.attackChain,
+                strengths: rJson.strengths || s.strengths,
+                weaknesses: rJson.weaknesses || s.weaknesses,
+                criticalIssues: rJson.critical_issues || s.criticalIssues,
+                recommendations: rJson.recommendations || s.recommendations,
+                serverHardening: rJson.server_hardening || s.serverHardening,
+                readyToDeployFixes: rJson.remediations || s.readyToDeployFixes,
+                zapCompleted: true,
+                zapAlerts: rJson.zap_alerts || [],
+              };
+            }
+            return s;
+          }));
+          clearInterval(poller);
+        }
+      } catch (err) {
+        console.debug("Silent ZAP poll error:", err);
+      }
+    }, 4500);
+
+    return () => clearInterval(poller);
+  }, [currentSite?.scanId, currentSite?.zapCompleted, selectedSiteIndex]);
 
   const copyToClipboard = (text: string, id: string) => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -142,9 +216,6 @@ export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashbo
       setTimeout(() => setCopiedSnippet(null), 2500);
     }
   };
-
-  const isComparison = results.length > 1;
-  const currentSite = results[selectedSiteIndex] || results[0];
 
   const serverSnippets: Record<string, string> = {
     nginx: currentSite.serverHardening?.nginx || `# ScanZero Hardening Bundle for Nginx (/etc/nginx/conf.d/security.conf)
@@ -1067,40 +1138,201 @@ async function handleRequest(request) {
                   </div>
                 )}
 
-                {/* Visual DAST Probed Endpoints for Set 5 */}
+                {/* Visual DAST Probed Endpoints & OWASP ZAP for Set 5 */}
                 {setKey === "set5" && (
-                  <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm card-hover space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-teal-600" />
-                        <h4 className="text-xs font-mono uppercase text-teal-600 font-bold">
-                          Application Surface &amp; Endpoint Probing Matrix
-                        </h4>
+                  <div className="space-y-4">
+                    {/* OWASP ZAP Cloud Dynamic DAST Matrix */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm card-hover space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 font-bold shadow-sm">
+                            <Shield className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                              OWASP ZAP Dynamic Application Security Testing (DAST)
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                                7GB Cloud Runner
+                              </span>
+                            </h4>
+                            <p className="text-xs text-gray-500">
+                              Automated vulnerability crawler &amp; fuzzer running in an isolated GitHub Actions cloud runner (24/7 on-demand).
+                            </p>
+                          </div>
+                        </div>
+
+                        {currentSite.zapCompleted ? (
+                          <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Completed &bull; Synced with Gemini
+                          </span>
+                        ) : (
+                          <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5 animate-pulse">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                            Cloud Runner Active (~60-90s)...
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        {setDetails.dast_verdict || "CLEAN SURFACE"}
-                      </span>
+
+                      {/* ZAP Severity Breakdown Badges */}
+                      {currentSite.zapCompleted && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {(() => {
+                            const alerts = currentSite.zapAlerts || (setDetails.zap_findings as any[]) || [];
+                            const high = alerts.filter((a: any) => (a.severity || a.risk || "").toLowerCase() === "high").length;
+                            const med = alerts.filter((a: any) => (a.severity || a.risk || "").toLowerCase() === "medium").length;
+                            const low = alerts.filter((a: any) => (a.severity || a.risk || "").toLowerCase() === "low").length;
+                            const info = alerts.filter((a: any) => (a.severity || a.risk || "").toLowerCase() === "info" || (a.severity || a.risk || "").toLowerCase() === "informational").length;
+                            return (
+                              <>
+                                <div className="p-3 bg-red-50/80 border border-red-200 rounded-xl flex items-center justify-between">
+                                  <span className="text-xs font-medium text-red-700">High Risk</span>
+                                  <span className="text-sm font-black text-red-800 font-mono">{high}</span>
+                                </div>
+                                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl flex items-center justify-between">
+                                  <span className="text-xs font-medium text-amber-700">Medium Risk</span>
+                                  <span className="text-sm font-black text-amber-800 font-mono">{med}</span>
+                                </div>
+                                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-center justify-between">
+                                  <span className="text-xs font-medium text-blue-700">Low Risk</span>
+                                  <span className="text-sm font-black text-blue-800 font-mono">{low}</span>
+                                </div>
+                                <div className="p-3 bg-gray-50/80 border border-gray-200 rounded-xl flex items-center justify-between">
+                                  <span className="text-xs font-medium text-gray-700">Informational</span>
+                                  <span className="text-sm font-black text-gray-800 font-mono">{info}</span>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* ZAP Dynamic Alerts Display */}
+                      {currentSite.zapCompleted ? (
+                        (currentSite.zapAlerts && currentSite.zapAlerts.length > 0) || (setDetails.zap_findings && setDetails.zap_findings.length > 0) ? (
+                          <div className="space-y-3">
+                            <h5 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
+                              OWASP ZAP Detected Telemetry &amp; Solutions
+                            </h5>
+                            <div className="space-y-2.5">
+                              {((currentSite.zapAlerts && currentSite.zapAlerts.length > 0 ? currentSite.zapAlerts : (setDetails.zap_findings || [])) as any[]).map((alert: any, aIdx: number) => {
+                                const sev = (alert.severity || alert.risk || "low").toLowerCase();
+                                const badgeColor =
+                                  sev === "high"
+                                    ? "bg-red-50 text-red-700 border-red-200"
+                                    : sev === "medium"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : sev === "low"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : "bg-gray-100 text-gray-700 border-gray-200";
+
+                                return (
+                                  <div key={aIdx} className="bg-gray-50/80 border border-gray-200 rounded-xl p-4 space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${badgeColor}`}>
+                                          {sev}
+                                        </span>
+                                        <span className="text-xs font-bold text-gray-900">
+                                          {alert.title || alert.name}
+                                        </span>
+                                      </div>
+                                      {(alert.evidence?.cweid || alert.cweid) && (
+                                        <span className="text-[10px] font-mono font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                          {alert.evidence?.cweid || alert.cweid}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {alert.description && (
+                                      <p className="text-xs text-gray-600 leading-relaxed">
+                                        {alert.description}
+                                      </p>
+                                    )}
+
+                                    {alert.solution && (
+                                      <div className="bg-white border border-emerald-200/80 rounded-lg p-2.5 text-xs text-emerald-900 flex items-start gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                        <div>
+                                          <strong className="font-semibold text-emerald-800">Remediation: </strong>
+                                          <span>{alert.solution}</span>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {(alert.evidence?.param || alert.param || alert.evidence?.url || alert.url) && (
+                                      <div className="text-[11px] font-mono text-gray-400 flex flex-wrap gap-3 pt-1 border-t border-gray-100">
+                                        {(alert.evidence?.param || alert.param) && (
+                                          <span>Parameter: <strong className="text-gray-600">{alert.evidence?.param || alert.param}</strong></span>
+                                        )}
+                                        {(alert.evidence?.url || alert.url) && (
+                                          <span className="truncate max-w-md">Endpoint: <span className="text-gray-600">{alert.evidence?.url || alert.url}</span></span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                            <div>
+                              <div className="text-xs font-bold text-emerald-900">Zero Dynamic Vulnerabilities Found</div>
+                              <div className="text-xs text-emerald-700">
+                                OWASP ZAP cloud baseline audit completed and verified 0 active high/medium vulnerabilities on the target perimeter.
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      ) : (
+                        <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center gap-3">
+                          <RefreshCw className="w-5 h-5 text-amber-600 animate-spin shrink-0" />
+                          <div>
+                            <div className="text-xs font-bold text-amber-900">OWASP ZAP Dynamic Scanning in Progress</div>
+                            <div className="text-xs text-amber-700">
+                              GitHub Actions 7GB runner is fuzzing and crawling {currentSite.domain} for dynamic misconfigurations. This card will update with full findings and Gemini insights once complete.
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {setDetails.probed_paths && setDetails.probed_paths.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {setDetails.probed_paths.map((item, pIdx) => (
-                          <div key={pIdx} className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-                            <div>
-                              <div className="text-xs font-mono font-bold text-gray-900">{item.path}</div>
-                              <div className="text-[10px] font-mono text-gray-400">{item.status}</div>
+                    {/* Sensitive Path Probes */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm card-hover space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-teal-600" />
+                          <h4 className="text-xs font-mono uppercase text-teal-600 font-bold">
+                            Application Surface &amp; Sensitive Endpoint Probing Matrix
+                          </h4>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                          {setDetails.dast_verdict || "CLEAN SURFACE"}
+                        </span>
+                      </div>
+
+                      {setDetails.probed_paths && setDetails.probed_paths.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {setDetails.probed_paths.map((item, pIdx) => (
+                            <div key={pIdx} className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+                              <div>
+                                <div className="text-xs font-mono font-bold text-gray-900">{item.path}</div>
+                                <div className="text-[10px] font-mono text-gray-400">{item.status}</div>
+                              </div>
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                {item.verdict || "BLOCKED"}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                              {item.verdict || "BLOCKED"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-500 font-mono text-center">
-                        Probed standard endpoints; all sensitive diagnostic paths restricted or blocked.
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-500 font-mono text-center">
+                          Probed standard endpoints; all sensitive diagnostic paths restricted or blocked.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1543,13 +1775,15 @@ async function handleRequest(request) {
               {/* Worker 5: DAST */}
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 5 &bull; DAST &amp; Probes</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set5 >= 80 ? 'text-teal-600' : 'text-rose-600'}`}>
-                    {currentSite.setScores.set5 >= 80 ? 'Clean' : 'Alert'}
+                  <span className="font-bold text-gray-700">Worker 5 &bull; OWASP ZAP &amp; DAST</span>
+                  <span className={`text-[10px] font-mono font-bold ${currentSite.zapCompleted ? (currentSite.setScores.set5 >= 80 ? 'text-teal-600' : 'text-rose-600') : 'text-amber-600'}`}>
+                    {currentSite.zapCompleted ? (currentSite.setScores.set5 >= 80 ? 'Completed' : 'Alert') : 'Scanning...'}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set5?.metricValue || "Sensitive paths probed"}</p>
-                <div className="text-[10px] text-gray-400 font-mono">.env &bull; .git &bull; backups</div>
+                <p className="text-[11px] text-gray-500">
+                  {currentSite.zapCompleted ? (currentSite.detailedSets.set5?.metricValue || "DAST scan completed") : "GitHub Actions 7GB Runner Active"}
+                </p>
+                <div className="text-[10px] text-gray-400 font-mono">OWASP ZAP &bull; Sensitive Probes</div>
               </div>
 
               {/* Worker 6: Honeypot */}

@@ -11,7 +11,7 @@ from app.models.database import AsyncSessionLocal
 from app.models.scan import ScanResult
 from app.models.memory_store import MEMORY_SCANS
 from app.utils.url_validator import validate_url
-from app.engine.cache import get_cached_scan
+from app.engine.cache import get_cached_scan, set_cached_scan
 
 logger = logging.getLogger(__name__)
 
@@ -203,8 +203,10 @@ async def ask_scan_gemini(scan_id: str, req: AskGeminiRequest):
 async def zap_callback(payload: dict):
     """
     Webhook callback endpoint invoked by GitHub Actions ZAP runner upon completion.
-    Asynchronously merges cloud-scanned DAST alerts into the live scan record and recalculates score.
+    Asynchronously merges cloud-scanned DAST alerts into the live scan record,
+    re-synthesizes full intelligence via Google Gemini AI, and updates all dashboards.
     """
+    import re
     scan_id = payload.get("scan_id")
     if not scan_id:
         raise HTTPException(status_code=400, detail="Missing scan_id in payload")
@@ -235,90 +237,203 @@ async def zap_callback(payload: dict):
         severity = risk_str.split()[0].lower() if risk_str else "low"
         if severity not in ["critical", "high", "medium", "low", "info"]:
             severity = "low"
+        
+        # Clean HTML tags from description and solution if present
+        clean_desc = re.sub(r'<[^>]+>', '', a.get("desc") or a.get("description", "Identified by OWASP ZAP cloud dynamic analysis."))
+        clean_sol = re.sub(r'<[^>]+>', '', a.get("solution") or "")
+
+        cwe_raw = str(a.get("cweid") or "")
+        cwe_formatted = f"CWE-{cwe_raw}" if cwe_raw and not cwe_raw.startswith("CWE") else cwe_raw
+
         zap_findings.append({
             "title": f"OWASP ZAP: {a.get('name') or a.get('alert', 'Security Finding')}",
-            "description": (a.get("desc") or a.get("description", "Identified by OWASP ZAP cloud analysis."))[:250],
+            "description": clean_desc[:250],
             "severity": severity,
             "category": "dast",
-            "solution": (a.get("solution") or "")[:250],
+            "solution": clean_sol[:250],
             "evidence": {
                 "param": a.get("param", ""),
                 "url": a.get("url", ""),
-                "cweid": a.get("cweid", ""),
+                "cweid": cwe_formatted,
                 "instances": len(a.get("instances", [])) if isinstance(a.get("instances"), list) else 0
             }
         })
 
-    # Recalculate dynamic scores if findings were added
-    from app.engine.scoring import calculate_score, assign_grade, calculate_category_scores
+    from app.engine.scoring import (
+        calculate_score,
+        assign_grade,
+        calculate_category_scores,
+        generate_detailed_sets,
+        generate_scoring_breakdown
+    )
     from app.engine.remediation import generate_fixes
+    from app.engine.gemini_analyzer import synthesize_scan_intelligence
 
-    # Update in-memory scan store
+    # Identify target domain and url from memory or DB
+    domain = "target.com"
+    url = f"https://{domain}"
+    existing_r_json = None
+
     if scan_id in MEMORY_SCANS:
         scan_mem = MEMORY_SCANS[scan_id]
-        r_json = scan_mem.get("results_json")
-        if isinstance(r_json, dict):
-            findings = r_json.setdefault("findings", [])
-            findings.extend(zap_findings)
-            remediated_findings = generate_fixes(findings)
-            r_json["findings"] = remediated_findings
-            
-            # Recalculate dynamic set scores and total score
-            worker_raw = r_json.get("raw_results", {})
-            worker_raw.setdefault("w5_dast", {}).setdefault("raw_data", {})["zap_cloud_alerts"] = zap_findings
-            new_set_scores = calculate_category_scores(remediated_findings, worker_raw)
-            new_score = calculate_score(remediated_findings, worker_raw, new_set_scores)
-            new_grade = assign_grade(new_score)
+        domain = scan_mem.get("domain", domain)
+        url = scan_mem.get("target_url", url)
+        existing_r_json = scan_mem.get("results_json")
 
-            r_json["set_scores"] = new_set_scores
-            r_json["score"] = new_score
-            r_json["grade"] = new_grade
-            r_json["zap_completed"] = True
-            r_json["zap_alerts_count"] = len(zap_findings)
+    # If not found in memory, try DB
+    if not existing_r_json:
+        try:
+            uid = uuid.UUID(scan_id)
+            async with AsyncSessionLocal() as session:
+                stmt = select(ScanResult).where(ScanResult.id == uid)
+                db_res = await session.execute(stmt)
+                scan = db_res.scalar_one_or_none()
+                if scan and scan.results_json:
+                    existing_r_json = scan.results_json
+                    domain = scan.domain or domain
+                    url = scan.target_url or url
+        except Exception as e:
+            logger.debug(f"DB lookup in zap_callback: {e}")
 
-            scan_mem["score"] = new_score
-            scan_mem["grade"] = new_grade
-            scan_mem["results_json"] = r_json
+    if not isinstance(existing_r_json, dict):
+        existing_r_json = {}
 
-    # Update Database if available
+    r_json = dict(existing_r_json)
+
+    # 1. Merge findings (replace old ZAP findings if any)
+    current_findings = [f for f in r_json.get("findings", []) if not f.get("title", "").startswith("OWASP ZAP:")]
+    combined_findings = current_findings + zap_findings
+    remediated_findings = generate_fixes(combined_findings)
+    r_json["findings"] = remediated_findings
+
+    # 2. Update worker raw results with ZAP cloud findings
+    worker_raw = r_json.setdefault("raw_results", {})
+    w5_dict = worker_raw.setdefault("w5_dast", {}).setdefault("raw_data", {})
+    w5_dict["zap_cloud_alerts"] = zap_findings
+    w5_dict["zap_alerts_count"] = len(zap_findings)
+    w5_dict["zap"] = {
+        "status": "completed",
+        "runner": "GitHub Actions Ubuntu 7GB Cloud Runner",
+        "alerts_count": len(zap_findings),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    # 3. Mathematical baseline recalculation
+    base_set_scores = calculate_category_scores(remediated_findings, worker_raw)
+    base_score = calculate_score(remediated_findings, worker_raw, base_set_scores)
+    base_grade = assign_grade(base_score)
+    base_detailed = generate_detailed_sets(domain, worker_raw, base_set_scores, remediated_findings)
+    base_breakdown = generate_scoring_breakdown(domain, remediated_findings, base_set_scores)
+
+    # 4. Feed ZAP report to Google Gemini AI for synthesis
+    logger.info(f"[ZAP-CALLBACK] Feeding {len(zap_findings)} OWASP ZAP alerts for {domain} into Google Gemini AI...")
+    gemini_intel = None
+    try:
+        gemini_intel = await synthesize_scan_intelligence(domain, url, worker_raw, remediated_findings)
+    except Exception as g_err:
+        logger.warning(f"[ZAP-CALLBACK] Gemini intelligence re-synthesis failed: {g_err}")
+
+    # Harmonize with Gemini or fallback
+    final_score = base_score
+    final_grade = base_grade
+    final_set_scores = dict(base_set_scores)
+    final_detailed = dict(base_detailed)
+    final_breakdown = base_breakdown
+    final_status_text = r_json.get("status_text", "")
+    final_strengths = r_json.get("strengths", [])
+    final_critical = r_json.get("critical_issues", [])
+    final_recs = r_json.get("recommendations", [])
+    final_hardening = r_json.get("server_hardening", {})
+
+    if gemini_intel:
+        if gemini_intel.get("ai_score") is not None:
+            final_score = int(gemini_intel["ai_score"])
+            final_grade = gemini_intel.get("ai_grade") or assign_grade(final_score)
+        final_status_text = gemini_intel.get("threat_verdict") or final_status_text
+        final_strengths = gemini_intel.get("strengths") or final_strengths
+        final_critical = gemini_intel.get("critical_risks") or final_critical
+        if gemini_intel.get("recommendations"):
+            final_recs = gemini_intel["recommendations"]
+        final_hardening = gemini_intel.get("server_hardening") or final_hardening
+
+        g_set_scores = gemini_intel.get("set_scores", {})
+        if isinstance(g_set_scores, dict) and g_set_scores:
+            for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
+                if k in g_set_scores:
+                    final_set_scores[k] = int(g_set_scores[k])
+
+        g_detailed = gemini_intel.get("detailed_sets", {})
+        if isinstance(g_detailed, dict) and g_detailed:
+            for k, v in g_detailed.items():
+                if isinstance(v, dict):
+                    final_detailed[k] = v
+
+        if gemini_intel.get("scoring_breakdown"):
+            final_breakdown = gemini_intel["scoring_breakdown"]
+
+    # Ensure Set 5 has explicit ZAP cloud runner fields
+    if "set5" in final_detailed:
+        final_detailed["set5"]["zap_status"] = "Complete (GitHub Actions 7GB Runner)"
+        final_detailed["set5"]["zap_alerts_count"] = len(zap_findings)
+        final_detailed["set5"]["zap_findings"] = base_detailed.get("set5", {}).get("zap_findings", [])
+
+    r_json["score"] = final_score
+    r_json["grade"] = final_grade
+    r_json["set_scores"] = final_set_scores
+    r_json["detailed_sets"] = final_detailed
+    r_json["scoring_breakdown"] = final_breakdown
+    r_json["status_text"] = final_status_text
+    r_json["strengths"] = final_strengths
+    r_json["critical_issues"] = final_critical
+    r_json["recommendations"] = final_recs
+    r_json["server_hardening"] = final_hardening
+    r_json["zap_completed"] = True
+    r_json["zap_alerts_count"] = len(zap_findings)
+    r_json["zap_alerts"] = zap_findings
+    if gemini_intel:
+        r_json["gemini_intelligence"] = gemini_intel
+        r_json["executive_summary"] = gemini_intel.get("executive_summary")
+        r_json["attacker_perspective"] = gemini_intel.get("attacker_perspective")
+        r_json["attack_chain"] = gemini_intel.get("attack_chain") or []
+        r_json["remediation_roadmap"] = gemini_intel.get("remediation_roadmap") or {}
+
+    # 5. Update in-memory store
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id]["score"] = final_score
+        MEMORY_SCANS[scan_id]["grade"] = final_grade
+        MEMORY_SCANS[scan_id]["results_json"] = r_json
+
+    # 6. Update database
     try:
         uid = uuid.UUID(scan_id)
         async with AsyncSessionLocal() as session:
             stmt = select(ScanResult).where(ScanResult.id == uid)
             db_res = await session.execute(stmt)
             scan = db_res.scalar_one_or_none()
-            if scan and scan.results_json:
-                db_results = dict(scan.results_json)
-                db_findings = db_results.setdefault("findings", [])
-                db_findings.extend(zap_findings)
-                remediated_db_findings = generate_fixes(db_findings)
-                db_results["findings"] = remediated_db_findings
-                
-                worker_raw = db_results.get("raw_results", {})
-                new_set_scores = calculate_category_scores(remediated_db_findings, worker_raw)
-                new_score = calculate_score(remediated_db_findings, worker_raw, new_set_scores)
-                new_grade = assign_grade(new_score)
-
-                db_results["set_scores"] = new_set_scores
-                db_results["score"] = new_score
-                db_results["grade"] = new_grade
-                db_results["zap_completed"] = True
-                db_results["zap_alerts_count"] = len(zap_findings)
-
-                scan.score = new_score
-                scan.grade = new_grade
-                scan.results_json = db_results
-                scan.findings_count = len(remediated_db_findings)
-                scan.critical_count = len([f for f in remediated_db_findings if f.get("severity") == "critical"])
-                scan.high_count = len([f for f in remediated_db_findings if f.get("severity") == "high"])
-                scan.medium_count = len([f for f in remediated_db_findings if f.get("severity") == "medium"])
-                scan.low_count = len([f for f in remediated_db_findings if f.get("severity") == "low"])
-
+            if scan:
+                scan.score = final_score
+                scan.grade = final_grade
+                scan.results_json = r_json
+                scan.findings_count = len(remediated_findings)
+                scan.critical_count = len([f for f in remediated_findings if f.get("severity") == "critical"])
+                scan.high_count = len([f for f in remediated_findings if f.get("severity") == "high"])
+                scan.medium_count = len([f for f in remediated_findings if f.get("severity") == "medium"])
+                scan.low_count = len([f for f in remediated_findings if f.get("severity") == "low"])
                 await session.commit()
     except Exception as e:
         logger.warning(f"ZAP callback DB update skipped: {e}")
 
-    logger.info(f"[ZAP-CALLBACK] Successfully merged {len(zap_findings)} ZAP findings for scan {scan_id}")
-    return {"status": "success", "scan_id": scan_id, "alerts_merged": len(zap_findings)}
+    # 7. Update Cache
+    await set_cached_scan(domain, r_json)
+
+    logger.info(f"[ZAP-CALLBACK] Successfully processed {len(zap_findings)} ZAP findings and re-synthesized Gemini intelligence for scan {scan_id}")
+    return {
+        "status": "success",
+        "scan_id": scan_id,
+        "alerts_merged": len(zap_findings),
+        "score": final_score,
+        "grade": final_grade,
+        "gemini_re_synthesized": gemini_intel is not None
+    }
 
 

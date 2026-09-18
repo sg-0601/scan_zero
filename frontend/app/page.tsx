@@ -230,6 +230,9 @@ export default function Home() {
     const scoringBreakdown = rJson.scoring_breakdown || generateFallbackBreakdown(domain, setScores);
 
     return {
+      scanId: data.id || rJson.scan_id,
+      zapCompleted: Boolean(rJson.zap_completed),
+      zapAlerts: rJson.zap_alerts || [],
       url,
       domain,
       overallScore: score,

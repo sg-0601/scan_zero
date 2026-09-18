@@ -274,17 +274,50 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
     if urlscan_info.get("status") == "success" and not urlscan_info.get("malicious"):
         s4_pos.append("Passive web topology & DOM structure validated (URLScan)")
 
-    # Set 5 Details (DAST & Sensitive Path Probes)
+    # Set 5 Details (DAST & Sensitive Path Probes & OWASP ZAP)
     dast_raw = worker_results.get("w5_dast", {}).get("raw_data", {})
     probed_paths = dast_raw.get("probed_paths", {})
     checked_paths = probed_paths.get("checked", {})
     dast_findings = [f for f in findings if f.get("category") == "dast"]
     
+    # Extract OWASP ZAP findings
+    zap_cloud_alerts = dast_raw.get("zap_cloud_alerts", []) or dast_raw.get("zap", {}).get("alerts", [])
+    zap_findings_list = []
+    for za in zap_cloud_alerts:
+        risk = (za.get("severity") or za.get("risk", "Low")).capitalize()
+        name = za.get("title", "OWASP ZAP Finding").replace("OWASP ZAP: ", "")
+        zap_findings_list.append({
+            "name": name,
+            "risk": risk,
+            "cweid": za.get("evidence", {}).get("cweid", "") or za.get("cweid", ""),
+            "solution": za.get("solution", ""),
+            "param": za.get("evidence", {}).get("param", "") or za.get("param", ""),
+            "url": za.get("evidence", {}).get("url", "") or za.get("url", "")
+        })
+
+    zap_meta = dast_raw.get("zap", {})
+    if zap_findings_list or zap_meta.get("status") == "completed":
+        zap_status = "Complete (GitHub Actions 7GB Runner)"
+        zap_count = len(zap_findings_list)
+    elif zap_meta.get("status") in ("cloud_active", "dispatched", "running"):
+        zap_status = "Scanning in Cloud (GitHub Actions 7GB Runner)"
+        zap_count = 0
+    else:
+        zap_status = "On-Demand Cloud Runner Ready"
+        zap_count = 0
+
     s5_pos = []
     s5_neg = []
+    if zap_findings_list:
+        for zf in zap_findings_list[:4]:
+            s5_neg.append(f"OWASP ZAP: {zf['name']} ({zf['risk']} Risk • {zf['cweid'] or 'DAST'})")
+    elif zap_status == "Complete (GitHub Actions 7GB Runner)":
+        s5_pos.append("OWASP ZAP dynamic baseline audit verified 0 high-risk vulnerabilities")
+
     if dast_findings:
         for df in dast_findings:
-            s5_neg.append(f"Exposed sensitive file: {df.get('title')}")
+            if not df.get("title", "").startswith("OWASP ZAP:"):
+                s5_neg.append(f"Exposed sensitive file: {df.get('title')}")
     else:
         if checked_paths:
             s5_pos.append(f"Probed {len(checked_paths)} sensitive endpoints (/.env, /.git, backups); all properly restricted/blocked")
@@ -394,18 +427,27 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
             "subdomain_count": len(subs)
         },
         "set5": {
-            "name": "Set 5: DAST & Exposure",
+            "name": "Set 5: DAST & Vulnerabilities",
             "score": set_scores["set5"],
             "grade": assign_grade(set_scores["set5"]),
-            "analyzedItems": ["Exposed Sensitive Files (.env, .git)", "Diagnostic Endpoints", "Configuration Backups", "Web Server Fingerprints"],
+            "analyzedItems": [
+                "Exposed Sensitive Files (.env, .git)",
+                "OWASP ZAP Cloud Dynamic Analysis",
+                "Diagnostic Endpoints",
+                "Configuration Backups",
+                "Web Server Fingerprints"
+            ],
             "positiveFindings": s5_pos or ["No configuration leaks detected on critical paths"],
             "negativeFindings": s5_neg or ["No public directory listing or file leaks detected"],
-            "whyScoreGiven": f"Awarded {set_scores['set5']}/100 based on sensitive path probing and active DAST telemetry.",
-            "evidence": f"Probes: {dast_evidence}",
-            "recommendation": "Implement WAF rules to block automatic vulnerability scanners and path traversal probes.",
-            "metricValue": f"{len(dast_findings)} Leaks Found" if dast_findings else "Clean Surface",
+            "whyScoreGiven": f"Awarded {set_scores['set5']}/100 based on sensitive path probing and OWASP ZAP cloud dynamic analysis.",
+            "evidence": f"Probes: {dast_evidence} &bull; ZAP: {zap_status} ({zap_count} Alerts)",
+            "recommendation": "Address high-priority OWASP ZAP dynamic findings and enforce strict access control to sensitive paths.",
+            "metricValue": f"{zap_count} ZAP Alerts &bull; {len(dast_findings)} Leaks" if (zap_count or dast_findings) else "Clean DAST Surface",
             "probed_paths": [{"path": p, "status": f"HTTP {code}", "verdict": "Blocked / Safe" if code in [404, 403, 401] else "Review"} for p, code in checked_paths.items()],
-            "dast_verdict": f"{len(dast_findings)} Leaks Found" if dast_findings else "Clean Surface (0 Leaks)"
+            "dast_verdict": f"{zap_count} ZAP Alerts Detected" if zap_count else ("Clean Surface (0 Leaks)" if not dast_findings else f"{len(dast_findings)} Leaks Found"),
+            "zap_status": zap_status,
+            "zap_alerts_count": zap_count,
+            "zap_findings": zap_findings_list
         },
         "set6": {
             "name": "Set 6: Deception Posture & Canary",
