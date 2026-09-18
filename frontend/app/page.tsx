@@ -97,14 +97,14 @@ export default function Home() {
 
     // Switch to transition view
     setViewState("scanning");
-    setScanProgress(20);
+    setScanProgress(15);
     setScanningMessageIndex(0);
 
-    // Progress timer sequence
+    // Dynamic progress timer sequence - smoothly increments up to 92%
     const msgTimer = setInterval(() => {
-      setScanningMessageIndex((prev) => (prev < scanningMessages.length - 1 ? prev + 1 : prev));
-      setScanProgress((p) => Math.min(95, p + 25));
-    }, 900);
+      setScanningMessageIndex((prev) => (prev + 1) % scanningMessages.length);
+      setScanProgress((p) => (p < 92 ? p + Math.floor(Math.random() * 3 + 2) : 94));
+    }, 800);
 
     try {
       // Run real parallel scans against backend for all submitted URLs
@@ -168,17 +168,17 @@ export default function Home() {
         }
       }
 
-      // Poll every 1.2s for completion (up to 60s — Render free tier needs 30-45s cold start)
-      for (let attempt = 0; attempt < 50; attempt++) {
+      // Poll every 1.2s for completion (up to 75 attempts = 90s to comfortably handle cold starts and multi-tool audits)
+      for (let attempt = 0; attempt < 75; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         try {
           const getRes = await fetch(`${API_BASE_URL}/api/scan/${scanId}`);
           if (getRes.ok) {
             const scanData = await getRes.json();
 
-            // Check if scan failed (unreachable domain)
+            // If backend explicitly marked scan as failed, throw immediately with real error
             if (scanData.status === "failed") {
-              const errorMsg = scanData.results_json?.error || `Domain '${domain}' is unreachable or not responding.`;
+              const errorMsg = scanData.results_json?.error || `Scan failed for '${domain}'. The target website may be offline or unreachable.`;
               throw new Error(errorMsg);
             }
 
@@ -191,11 +191,11 @@ export default function Home() {
             }
           }
         } catch (pollErr: any) {
-          // If this is our own thrown error, re-throw it
-          if (pollErr?.message?.includes('unreachable') || pollErr?.message?.includes('not responding')) {
+          // If this is a real scan failure or explicit error, throw immediately - do not swallow!
+          if (pollErr?.message && !pollErr.message.includes('Failed to fetch') && !pollErr.message.includes('NetworkError')) {
             throw pollErr;
           }
-          // Otherwise retry on transient network blip
+          // Only retry on transient client-side network fetch glitches
         }
       }
 

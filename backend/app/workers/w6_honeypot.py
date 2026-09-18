@@ -32,14 +32,17 @@ class HoneypotWorker(BaseWorker):
 
     async def canary_uri_test(self, url: str) -> dict:
         uris = [f"{url}/a8f9ds7v68s", f"{url}/zcxvbm1234", f"{url}/.env.bak.xyz"]
-        success_count = 0
         try:
-            async with httpx.AsyncClient(verify=False) as client:
-                for uri in uris:
-                    resp = await client.get(uri, timeout=5)
-                    if resp.status_code == 200:
-                        success_count += 1
-            
-            return {"all_200": success_count == len(uris), "success_count": success_count}
+            async with httpx.AsyncClient(verify=False, timeout=3.5) as client:
+                async def _probe(uri):
+                    try:
+                        resp = await client.get(uri)
+                        return resp.status_code == 200
+                    except Exception:
+                        return False
+
+                results = await asyncio.gather(*[_probe(u) for u in uris], return_exceptions=True)
+                success_count = sum(1 for r in results if r is True)
+                return {"all_200": success_count == len(uris), "success_count": success_count}
         except Exception as e:
             return {"error": str(e)}

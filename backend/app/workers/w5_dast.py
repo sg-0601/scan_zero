@@ -60,27 +60,31 @@ class DastWorker(BaseWorker):
 
         checked_paths = {}
         try:
-            async with httpx.AsyncClient(verify=False, follow_redirects=False, timeout=5.0) as client:
-                for c in checks:
+            async with httpx.AsyncClient(verify=False, follow_redirects=False, timeout=4.0) as client:
+                async def _probe(c):
                     test_url = f"{clean_url}{c['path']}"
                     try:
                         resp = await client.get(test_url)
                         checked_paths[c["path"]] = resp.status_code
-                        # Only flag if returns 200 with meaningful content
                         if resp.status_code == 200 and len(resp.content) > 5:
-                            # Verify not a soft 404 HTML page
                             content_type = resp.headers.get("content-type", "").lower()
                             content_sample = resp.text[:100].lower()
                             if "text/html" not in content_type or "ref: refs/" in content_sample or "db_" in content_sample or "php" in content_sample:
-                                findings.append({
+                                return {
                                     "title": c["title"],
                                     "description": c["desc"],
                                     "severity": c["severity"],
                                     "category": "dast",
                                     "evidence": {"url": test_url, "status_code": resp.status_code}
-                                })
+                                }
                     except Exception:
                         checked_paths[c["path"]] = "timeout/error"
+                    return None
+
+                results = await asyncio.gather(*[_probe(c) for c in checks], return_exceptions=True)
+                for res in results:
+                    if isinstance(res, dict):
+                        findings.append(res)
 
         except Exception as e:
             return {"status": "error", "error": str(e), "findings": findings}
