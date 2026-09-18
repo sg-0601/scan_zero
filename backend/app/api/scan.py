@@ -3,6 +3,7 @@ from sqlalchemy.future import select
 from typing import Dict
 from pydantic import BaseModel
 from datetime import datetime
+import asyncio
 import uuid
 import logging
 
@@ -24,6 +25,13 @@ class ScanRequest(BaseModel):
 async def start_scan_task(scan_id: uuid.UUID, domain: str, url: str):
     scan_id_str = str(scan_id)
     try:
+        # Asynchronously trigger GitHub Actions ZAP runner if configured
+        try:
+            from app.utils.github_zap import trigger_github_zap
+            asyncio.create_task(trigger_github_zap(url, scan_id_str))
+        except Exception as zap_err:
+            logger.debug(f"GitHub ZAP runner trigger skipped: {zap_err}")
+
         from app.engine.dispatcher import run_scan
         await run_scan(scan_id_str, domain, url)
     except Exception as e:
@@ -190,4 +198,73 @@ async def ask_scan_gemini(scan_id: str, req: AskGeminiRequest):
     from app.engine.gemini_analyzer import ask_gemini_scan_assistant
     answer_data = await ask_gemini_scan_assistant(domain, scan_data, req.question, req.history)
     return answer_data
+
+@router.post("/scan/zap-callback")
+async def zap_callback(payload: dict):
+    """
+    Webhook callback endpoint invoked by GitHub Actions ZAP runner upon completion.
+    Asynchronously merges cloud-scanned DAST alerts into the live scan record.
+    """
+    scan_id = payload.get("scan_id")
+    if not scan_id:
+        raise HTTPException(status_code=400, detail="Missing scan_id in payload")
+
+    report = payload.get("report", {})
+    zap_findings = []
+
+    # Parse ZAP JSON site alerts
+    sites = report.get("site", [])
+    if isinstance(sites, list):
+        for s in sites:
+            for a in s.get("alerts", []):
+                risk_str = a.get("riskdesc", a.get("risk", "Low"))
+                severity = risk_str.split()[0].lower() if risk_str else "low"
+                if severity not in ["critical", "high", "medium", "low", "info"]:
+                    severity = "low"
+                zap_findings.append({
+                    "title": f"OWASP ZAP: {a.get('name') or a.get('alert', 'Security Finding')}",
+                    "description": (a.get("desc") or a.get("description", "Identified by OWASP ZAP cloud analysis."))[:250],
+                    "severity": severity,
+                    "category": "dast",
+                    "solution": (a.get("solution") or "")[:250],
+                    "evidence": {
+                        "param": a.get("param", ""),
+                        "url": a.get("url", ""),
+                        "cweid": a.get("cweid", ""),
+                        "instances": len(a.get("instances", []))
+                    }
+                })
+
+    # Update in-memory scan store
+    if scan_id in MEMORY_SCANS:
+        scan_mem = MEMORY_SCANS[scan_id]
+        r_json = scan_mem.get("results_json")
+        if isinstance(r_json, dict):
+            findings = r_json.setdefault("findings", [])
+            findings.extend(zap_findings)
+            r_json["zap_completed"] = True
+            r_json["zap_alerts_count"] = len(zap_findings)
+            scan_mem["results_json"] = r_json
+
+    # Update Database if available
+    try:
+        uid = uuid.UUID(scan_id)
+        async with AsyncSessionLocal() as session:
+            stmt = select(ScanResult).where(ScanResult.id == uid)
+            db_res = await session.execute(stmt)
+            scan = db_res.scalar_one_or_none()
+            if scan and scan.results_json:
+                db_results = dict(scan.results_json)
+                db_findings = db_results.setdefault("findings", [])
+                db_findings.extend(zap_findings)
+                db_results["zap_completed"] = True
+                db_results["zap_alerts_count"] = len(zap_findings)
+                scan.results_json = db_results
+                await session.commit()
+    except Exception as e:
+        logger.warning(f"ZAP callback DB update skipped: {e}")
+
+    logger.info(f"[ZAP-CALLBACK] Successfully merged {len(zap_findings)} ZAP findings for scan {scan_id}")
+    return {"status": "success", "scan_id": scan_id, "alerts_merged": len(zap_findings)}
+
 

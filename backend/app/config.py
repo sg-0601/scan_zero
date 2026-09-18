@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     ZAP_API_URL: str = ""
     ZAP_API_KEY: str = ""
 
+    # GitHub Actions Cloud ZAP Runner
+    GITHUB_TOKEN: str = ""
+    GITHUB_REPO: str = "sg-0601/scan_zero"
+    BACKEND_PUBLIC_URL: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
