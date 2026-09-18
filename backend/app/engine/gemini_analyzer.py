@@ -187,13 +187,13 @@ def prepare_telemetry_digest(domain: str, url: str, worker_results: Dict[str, An
 
 def get_candidate_models() -> List[str]:
     """Retrieve prioritized list of Gemini models to use."""
-    primary = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-3.8-flash")
-    fallback_str = getattr(settings, "GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest")
+    primary = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-flash-lite-latest")
+    fallback_str = getattr(settings, "GEMINI_FALLBACK_MODELS", "gemini-3.1-flash-lite,gemini-3.5-flash-lite")
     fallbacks = [m.strip() for m in fallback_str.split(",") if m.strip()]
     models = [primary] + [m for m in fallbacks if m != primary]
     return models
 
-async def call_gemini_api(prompt: str, response_json: bool = True, timeout_sec: float = 14.0) -> Optional[str]:
+async def call_gemini_api(prompt: str, response_json: bool = True, timeout_sec: float = 35.0) -> Optional[str]:
     """Robust Gemini REST API call with model fallback chain and JSON schema support."""
     key = settings.GEMINI_API_KEY
     if not key:
@@ -773,7 +773,7 @@ Return a STRICT, VALID JSON object with the following schema:
 IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or backticks outside the JSON.
 """
 
-    raw_response = await call_gemini_api(prompt, response_json=True, timeout_sec=18.0)
+    raw_response = await call_gemini_api(prompt, response_json=True, timeout_sec=35.0)
     parsed_json = clean_and_parse_json(raw_response) if raw_response else None
 
     if not parsed_json or "ai_score" not in parsed_json:
@@ -827,10 +827,20 @@ IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or 
                 # Maintain legacy analyzedItems string list for backward compatibility
                 if not s_dict.get("analyzedItems"):
                     s_dict["analyzedItems"] = [item["item"] if isinstance(item, dict) else str(item) for item in s_dict.get("analyzed_items", [])]
-                # Ensure negative_remediation_guides exists
-                if not s_dict.get("negative_remediation_guides") or not isinstance(s_dict["negative_remediation_guides"], list):
-                    negs = s_dict.get("negativeFindings", fb_dict.get("negativeFindings", []))
-                    s_dict["negative_remediation_guides"] = build_negative_remediation_guides(k, negs, domain)
+                
+                # Ensure every negative finding has an actionable remediation guide with valid documentation URLs
+                negs = s_dict.get("negativeFindings", fb_dict.get("negativeFindings", []))
+                valid_negs = [n for n in negs if n and not n.lower().startswith("none") and not "clean" in n.lower() and not "zero" in n.lower()]
+                existing_guides = s_dict.get("negative_remediation_guides")
+                if not existing_guides or not isinstance(existing_guides, list):
+                    s_dict["negative_remediation_guides"] = build_negative_remediation_guides(k, valid_negs, domain)
+                else:
+                    existing_names = {g.get("finding", "").lower().strip() for g in existing_guides if isinstance(g, dict)}
+                    missing_negs = [vn for vn in valid_negs if vn.lower().strip() not in existing_names]
+                    if missing_negs:
+                        fb_guides = build_negative_remediation_guides(k, missing_negs, domain)
+                        existing_guides.extend(fb_guides)
+                    s_dict["negative_remediation_guides"] = existing_guides
 
     parsed_json["ai_powered"] = True
     parsed_json["gemini_model_used"] = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-flash-lite-latest")

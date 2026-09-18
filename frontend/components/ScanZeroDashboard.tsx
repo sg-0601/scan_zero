@@ -1020,18 +1020,21 @@ async function handleRequest(request) {
                           {guide.fix_urls && guide.fix_urls.length > 0 && (
                             <div className="pt-2 flex flex-wrap items-center gap-2">
                               <span className="text-[11px] font-medium text-gray-500">Official Guides &amp; Fix URLs:</span>
-                              {guide.fix_urls.map((link: any, lIdx: number) => (
-                                <a
-                                  key={lIdx}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-800 text-[11px] font-semibold border border-teal-200 hover:border-teal-300 transition-all active:scale-95 shadow-sm"
-                                >
-                                  <span>{link.label}</span>
-                                  <ExternalLink className="w-3 h-3 shrink-0" />
-                                </a>
-                              ))}
+                              {guide.fix_urls.map((link: any, lIdx: number) => {
+                                const targetUrl = link.url?.startsWith("http://") || link.url?.startsWith("https://") ? link.url : `https://${link.url}`;
+                                return (
+                                  <a
+                                    key={lIdx}
+                                    href={targetUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-800 text-[11px] font-semibold border border-teal-200 hover:border-teal-300 transition-all active:scale-95 shadow-sm cursor-pointer"
+                                  >
+                                    <span>{link.label}</span>
+                                    <ExternalLink className="w-3 h-3 shrink-0" />
+                                  </a>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     SHODAN_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     GEMINI_PRIMARY_MODEL: str = "gemini-flash-lite-latest"
-    GEMINI_FALLBACK_MODELS: str = "gemini-flash-latest,gemini-2.5-flash"
+    GEMINI_FALLBACK_MODELS: str = "gemini-3.1-flash-lite,gemini-3.5-flash-lite"
     SECRET_KEY: str = "supersecretkey"
 
     # World-Class Free Alternative Threat Intel API Keys
@@ -25,6 +25,6 @@ class Settings(BaseSettings):
     GITHUB_REPO: str = "sg-0601/scan_zero"
     BACKEND_PUBLIC_URL: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

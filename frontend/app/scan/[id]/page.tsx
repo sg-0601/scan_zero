@@ -386,7 +386,7 @@ export default function ScanResultsPage() {
               <span>🛡️</span> Stage 8B: "Forge Your Shield" Remediation Engine
             </h2>
             <p className="text-gray-500 text-sm mt-0.5">
-              1-Click drop-in configuration blocks for your web server, WAF, and DNS providers.
+              Automated drop-in configuration blocks for your web server, WAF, and DNS providers.
             </p>
           </div>
         </div>
