@@ -264,7 +264,8 @@ async def zap_callback(payload: dict):
         assign_grade,
         calculate_category_scores,
         generate_detailed_sets,
-        generate_scoring_breakdown
+        generate_scoring_breakdown,
+        generate_worker_intelligence_stream
     )
     from app.engine.remediation import generate_fixes
     from app.engine.gemini_analyzer import synthesize_scan_intelligence
@@ -366,6 +367,12 @@ async def zap_callback(payload: dict):
         if isinstance(g_detailed, dict) and g_detailed:
             for k, v in g_detailed.items():
                 if isinstance(v, dict):
+                    if not v.get("analyzed_items") or not isinstance(v.get("analyzed_items"), list) or not all(isinstance(x, dict) and "item" in x for x in v["analyzed_items"]):
+                        v["analyzed_items"] = base_detailed.get(k, {}).get("analyzed_items", [])
+                    if not v.get("analyzedItems"):
+                        v["analyzedItems"] = base_detailed.get(k, {}).get("analyzedItems", [])
+                    if not v.get("negative_remediation_guides"):
+                        v["negative_remediation_guides"] = base_detailed.get(k, {}).get("negative_remediation_guides", [])
                     final_detailed[k] = v
 
         if gemini_intel.get("scoring_breakdown"):
@@ -390,6 +397,11 @@ async def zap_callback(payload: dict):
     r_json["zap_completed"] = True
     r_json["zap_alerts_count"] = len(zap_findings)
     r_json["zap_alerts"] = zap_findings
+    r_json["worker_intelligence_stream"] = (
+        gemini_intel.get("worker_intelligence_stream")
+        if gemini_intel and gemini_intel.get("worker_intelligence_stream")
+        else generate_worker_intelligence_stream(final_set_scores, worker_raw)
+    )
     if gemini_intel:
         r_json["gemini_intelligence"] = gemini_intel
         r_json["executive_summary"] = gemini_intel.get("executive_summary")

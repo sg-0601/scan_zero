@@ -16,7 +16,8 @@ from app.engine.scoring import (
     assign_grade,
     calculate_category_scores,
     generate_detailed_sets,
-    generate_scoring_breakdown
+    generate_scoring_breakdown,
+    generate_worker_intelligence_stream
 )
 from app.engine.remediation import generate_fixes
 from app.engine.gemini_analyzer import synthesize_scan_intelligence
@@ -231,6 +232,15 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
                     elif k == "set6":
                         if not val.get("canary_status"):
                             val["canary_status"] = base_set.get("canary_status", "Expected Client Error (404/403)")
+                    
+                    # Preserve analyzed_items and negative_remediation_guides across all sets
+                    if not val.get("analyzed_items") or not isinstance(val.get("analyzed_items"), list) or not all(isinstance(x, dict) and "item" in x for x in val["analyzed_items"]):
+                        val["analyzed_items"] = base_set.get("analyzed_items", [])
+                    if not val.get("analyzedItems"):
+                        val["analyzedItems"] = base_set.get("analyzedItems", [])
+                    if not val.get("negative_remediation_guides"):
+                        val["negative_remediation_guides"] = base_set.get("negative_remediation_guides", [])
+
                     detailed_sets[k] = val
 
         # Adopt Gemini's dynamic scoring breakdown table
@@ -293,6 +303,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         "findings": remediated_findings,
         "remediations": ready_fixes,
         "raw_results": worker_results_dict,
+        "worker_intelligence_stream": gemini_intel.get("worker_intelligence_stream") if gemini_intel and gemini_intel.get("worker_intelligence_stream") else generate_worker_intelligence_stream(set_scores, worker_results_dict),
         "gemini_intelligence": gemini_intel,
         "executive_summary": gemini_intel.get("executive_summary") if gemini_intel else None,
         "attacker_perspective": gemini_intel.get("attacker_perspective") if gemini_intel else None,

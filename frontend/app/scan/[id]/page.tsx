@@ -136,7 +136,7 @@ export default function ScanResultsPage() {
         </div>
       </div>
 
-      {/* Google Gemini AI Executive Intelligence Hero Card */}
+      {/* AI Executive Intelligence Hero Card */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-teal-950 border border-teal-500/40 rounded-2xl p-6 md:p-8 mb-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="relative z-10">
@@ -147,7 +147,7 @@ export default function ScanResultsPage() {
               </div>
               <div>
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-300 block">
-                  Google Gemini Multi-Tool Intelligence Core
+                  AI Multi-Tool Intelligence Core
                 </span>
                 <span className="text-[11px] text-gray-400">
                   Synthesized across OSINT, Shodan, VirusTotal, TLS, Headers, and DNS
@@ -211,7 +211,7 @@ export default function ScanResultsPage() {
         </div>
       </div>
 
-      {/* Interactive Gemini AI Security Lead Assistant */}
+      {/* Interactive AI Security Lead Assistant */}
       <GeminiAssistant
         scanId={String(params.id)}
         domain={targetDomain}
@@ -223,37 +223,35 @@ export default function ScanResultsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
         {/* Visual 1: Healing Shield Donut */}
         <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-sm">
-          <h3 className="text-sm font-mono text-teal-600 uppercase tracking-widest font-bold mb-4">
-            Visual 1 &bull; Healing Shield
-          </h3>
-          <HealingShield score={overallScore} grade={grade} />
-          <p className="text-xs text-gray-500 mt-4 max-w-xs">
-            Visually repairs and glows as security patches and headers are applied.
-          </p>
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="w-4 h-4 text-teal-600" />
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
+              Posture Breakdown
+            </h3>
+          </div>
+          <HealingShieldDonut findings={findings} overallScore={overallScore} />
         </div>
 
-        {/* Visual 2: Category Breakdown Score Gauge */}
-        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-mono text-teal-600 uppercase tracking-widest font-bold mb-4">
-              Category Posture Breakdown
+        {/* Visual 2: Category Breakdown Bars */}
+        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-4 h-4 text-teal-600" />
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
+              6-Vector Score Profile
             </h3>
-            <ScoreGauge score={overallScore} categories={categories} />
           </div>
-          <div className="text-[11px] text-gray-400 font-mono mt-4 pt-3 border-t border-gray-200">
-            Formula: Crypto (25%) + Headers (30%) + DNS (20%) + Surface (25%)
-          </div>
+          <CategoryBreakdown categories={categories} />
         </div>
-        
-        {/* Visual 3: N-Site Radar Chart */}
-        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-between shadow-sm">
-          <div className="w-full">
-            <h3 className="text-sm font-mono text-teal-600 uppercase tracking-widest font-bold mb-1">
-              Visual 2 &bull; N-Site Radar
+
+        {/* Visual 3: Radar Chart */}
+        <div className="lg:col-span-4 bg-white/90 border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Cpu className="w-4 h-4 text-teal-600" />
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gray-500">
+              Perimeter Defense Radar
             </h3>
-            <p className="text-xs text-gray-500 mb-2">Target domain vs industry benchmark</p>
           </div>
-          <RadarChart mainTarget={targetDomain} scores={setScores} />
+          <PerimeterRadarChart categories={categories} />
         </div>
       </div>
 
@@ -262,7 +260,7 @@ export default function ScanResultsPage() {
         <KillChainGraph domain={targetDomain} findings={findings} />
       </div>
 
-      {/* Gemini AI Multi-Step Attack Chain Scenario */}
+      {/* AI Multi-Step Attack Chain Scenario */}
       {(() => {
         const attackChain = rawResults?.gemini_intelligence?.attack_chain || rawResults?.attack_chain;
         if (!attackChain || attackChain.length === 0) return null;
@@ -273,7 +271,7 @@ export default function ScanResultsPage() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                   <Crosshair className="w-5 h-5 text-rose-500" />
-                  Gemini Correlated Attack Chain Scenario
+                  AI Correlated Attack Chain Scenario
                 </h3>
                 <p className="text-gray-500 text-xs mt-0.5">
                   How a threat actor combines the multi-tool discoveries into an end-to-end compromise pathway
@@ -309,7 +307,7 @@ export default function ScanResultsPage() {
         );
       })()}
 
-      {/* Gemini 3-Phase Action Roadmap */}
+      {/* AI 3-Phase Action Roadmap */}
       {(() => {
         const roadmap = rawResults?.gemini_intelligence?.remediation_roadmap || rawResults?.remediation_roadmap;
         if (!roadmap) return null;
@@ -344,7 +342,7 @@ export default function ScanResultsPage() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-teal-600" />
-                  Gemini Remediation &amp; Hardening Roadmap
+                  AI Remediation &amp; Hardening Roadmap
                 </h3>
                 <p className="text-gray-500 text-xs mt-0.5">
                   Prioritized AI action plan to remediate vulnerabilities and elevate security score

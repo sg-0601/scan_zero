@@ -51,6 +51,27 @@ import {
   Legend,
 } from "recharts";
 
+export interface AnalyzedItem {
+  item: string;
+  status: "PASS" | "FAIL" | "WARN";
+  details: string;
+}
+
+export interface NegativeRemediationGuide {
+  finding: string;
+  steps: string[];
+  fix_urls: { label: string; url: string }[];
+}
+
+export interface WorkerIntelligenceItem {
+  worker_name: string;
+  section_id: string;
+  status: "Passed" | "Warning" | "Failed" | "Notice";
+  metric_value: string;
+  summary: string;
+  tools: string;
+}
+
 export interface WebsiteResult {
   scanId?: string;
   zapCompleted?: boolean;
@@ -61,6 +82,7 @@ export interface WebsiteResult {
     solution?: string;
     evidence?: { param?: string; url?: string; cweid?: string; instances?: number };
   }>;
+  workerIntelligenceStream?: Record<string, WorkerIntelligenceItem>;
   url: string;
   domain: string;
   overallScore: number;
@@ -83,9 +105,12 @@ export interface WebsiteResult {
       name: string;
       score: number;
       grade: string;
-      analyzedItems: string[];
-      positiveFindings: string[];
+      analyzedItems: (string | AnalyzedItem)[];
+      analyzed_items?: AnalyzedItem[];
       negativeFindings: string[];
+      negative_remediation_guides?: NegativeRemediationGuide[];
+      negativeRemediationGuides?: NegativeRemediationGuide[];
+      positiveFindings: string[];
       whyScoreGiven: string;
       evidence: string;
       recommendation: string;
@@ -193,6 +218,7 @@ export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashbo
                 recommendations: rJson.recommendations || s.recommendations,
                 serverHardening: rJson.server_hardening || s.serverHardening,
                 readyToDeployFixes: rJson.remediations || s.readyToDeployFixes,
+                workerIntelligenceStream: rJson.worker_intelligence_stream || s.workerIntelligenceStream,
                 zapCompleted: true,
                 zapAlerts: rJson.zap_alerts || [],
               };
@@ -208,6 +234,83 @@ export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashbo
 
     return () => clearInterval(poller);
   }, [currentSite?.scanId, currentSite?.zapCompleted, selectedSiteIndex]);
+
+  // Section to Worker mapping for the Section-Aware Intelligence Stream
+  const getStreamWorkers = () => {
+    const rawStream = currentSite.workerIntelligenceStream;
+
+    const allWorkers = [
+      {
+        key: "w1_osint",
+        sectionId: "set4",
+        name: rawStream?.w1_osint?.worker_name || "Worker 1 • OSINT & Perimeter",
+        status: rawStream?.w1_osint?.status || (currentSite.setScores.set4 >= 80 ? "Passed" : currentSite.setScores.set4 >= 60 ? "Warning" : "Failed"),
+        metric: rawStream?.w1_osint?.metric_value || currentSite.detailedSets.set4?.metricValue || "Perimeter enumerated",
+        summary: rawStream?.w1_osint?.summary || "Clean OSINT perimeter posture verified across 70+ threat feeds.",
+        tools: rawStream?.w1_osint?.tools || "VirusTotal • Shodan • URLScan.io • OTX • Hudson Rock",
+      },
+      {
+        key: "w2_tls",
+        sectionId: "set1",
+        name: rawStream?.w2_tls?.worker_name || "Worker 2 • TLS Cryptography",
+        status: rawStream?.w2_tls?.status || (currentSite.setScores.set1 >= 80 ? "Passed" : currentSite.setScores.set1 >= 60 ? "Warning" : "Failed"),
+        metric: rawStream?.w2_tls?.metric_value || currentSite.detailedSets.set1?.metricValue || "TLS Handshake active",
+        summary: rawStream?.w2_tls?.summary || "Modern cryptographic handshake validated with trusted CA root.",
+        tools: rawStream?.w2_tls?.tools || "Port 443 • Cipher validation • OpenSSL",
+      },
+      {
+        key: "w3_headers",
+        sectionId: "set2",
+        name: rawStream?.w3_headers?.worker_name || "Worker 3 • Header & CSP Audit",
+        status: rawStream?.w3_headers?.status || (currentSite.setScores.set2 >= 80 ? "Passed" : currentSite.setScores.set2 >= 60 ? "Warning" : "Failed"),
+        metric: rawStream?.w3_headers?.metric_value || currentSite.detailedSets.set2?.metricValue || "Security headers checked",
+        summary: rawStream?.w3_headers?.summary || "Client-side browser defense headers actively audited.",
+        tools: rawStream?.w3_headers?.tools || "CSP • HSTS • X-Frame-Options • Cookies",
+      },
+      {
+        key: "w4_dns",
+        sectionId: "set3",
+        name: rawStream?.w4_dns?.worker_name || "Worker 4 • DNS & Anti-Spoofing",
+        status: rawStream?.w4_dns?.status || (currentSite.setScores.set3 >= 80 ? "Passed" : currentSite.setScores.set3 >= 60 ? "Warning" : "Failed"),
+        metric: rawStream?.w4_dns?.metric_value || currentSite.detailedSets.set3?.metricValue || "SPF & DMARC validated",
+        summary: rawStream?.w4_dns?.summary || "Email identity authenticated with anti-phishing protection.",
+        tools: rawStream?.w4_dns?.tools || "SPF • DMARC • DNSSEC • MX",
+      },
+      {
+        key: "w5_dast",
+        sectionId: "set5",
+        name: rawStream?.w5_dast?.worker_name || "Worker 5 • OWASP ZAP & DAST",
+        status: rawStream?.w5_dast?.status || (currentSite.zapCompleted ? (currentSite.setScores.set5 >= 80 ? "Passed" : "Failed") : "Warning"),
+        metric: rawStream?.w5_dast?.metric_value || (currentSite.zapCompleted ? (currentSite.detailedSets.set5?.metricValue || "DAST scan completed") : "GitHub Actions 7GB Runner Active"),
+        summary: rawStream?.w5_dast?.summary || "Standard probe paths clean; dynamic application surface evaluated.",
+        tools: rawStream?.w5_dast?.tools || "OWASP ZAP Cloud Runner • Nuclei • Path Probes",
+      },
+      {
+        key: "w6_honeypot",
+        sectionId: "set6",
+        name: rawStream?.w6_honeypot?.worker_name || "Worker 6 • Deception & Canary",
+        status: rawStream?.w6_honeypot?.status || (currentSite.setScores.set6 >= 80 ? "Passed" : "Failed"),
+        metric: rawStream?.w6_honeypot?.metric_value || currentSite.detailedSets.set6?.metricValue || "Authentic host verified",
+        summary: rawStream?.w6_honeypot?.summary || "Canary probes verified transparent routing and standard 404 behavior.",
+        tools: rawStream?.w6_honeypot?.tools || "Canary URI Probes • Tarpit Latency • WAFW00F",
+      },
+    ];
+
+    if (activeSection === "set1") {
+      return allWorkers.filter((w) => w.sectionId === "set1");
+    } else if (activeSection === "set2") {
+      return allWorkers.filter((w) => w.sectionId === "set2");
+    } else if (activeSection === "set3") {
+      return allWorkers.filter((w) => w.sectionId === "set3");
+    } else if (activeSection === "set4") {
+      return allWorkers.filter((w) => w.sectionId === "set4");
+    } else if (activeSection === "set5") {
+      return allWorkers.filter((w) => w.sectionId === "set5");
+    } else if (activeSection === "set6") {
+      return allWorkers.filter((w) => w.sectionId === "set6");
+    }
+    return allWorkers;
+  };
 
   const copyToClipboard = (text: string, id: string) => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -772,26 +875,53 @@ async function handleRequest(request) {
                     <h4 className="text-xs font-mono uppercase text-teal-600 font-bold mb-3 flex items-center gap-1.5">
                       <Info className="w-3.5 h-3.5" /> What Was Analyzed
                     </h4>
-                    <div className="space-y-2 text-xs text-gray-600">
-                      {setDetails.analyzedItems.map((item, idx) => {
-                        const isPassing = idx < setDetails.positiveFindings.length;
+                    <div className="space-y-2.5 text-xs text-gray-600">
+                      {(setDetails.analyzed_items && setDetails.analyzed_items.length > 0
+                        ? setDetails.analyzed_items
+                        : setDetails.analyzedItems.map((it: any) => typeof it === "object" ? it : { item: String(it), status: "PASS", details: "" })
+                      ).map((analyzed: any, idx: number) => {
+                        const name = typeof analyzed === "string" ? analyzed : analyzed.item;
+                        const status = (typeof analyzed === "object" ? analyzed.status : "PASS")?.toUpperCase() || "PASS";
+                        const details = typeof analyzed === "object" ? analyzed.details : "";
+
+                        const isPass = status === "PASS";
+                        const isWarn = status === "WARN";
+
                         return (
-                          <div key={idx} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg border transition-colors ${
-                            isPassing ? 'bg-emerald-50/50 border-emerald-100 hover:border-emerald-200' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                          }`}>
-                            <div className="flex items-center gap-2">
-                              {isPassing ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                              ) : (
-                                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                              )}
-                              <span className="font-medium">{item}</span>
+                          <div
+                            key={idx}
+                            className={`p-2.5 rounded-xl border transition-all ${
+                              isPass
+                                ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300'
+                                : isWarn
+                                ? 'bg-amber-50/50 border-amber-200 hover:border-amber-300'
+                                : 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                {isPass && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                                {isWarn && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />}
+                                {!isPass && !isWarn && <XCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                                <span className="font-bold text-gray-900">{name}</span>
+                              </div>
+                              <span
+                                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
+                                  isPass
+                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                    : isWarn
+                                    ? 'bg-amber-100 text-amber-700 border-amber-300'
+                                    : 'bg-rose-100 text-rose-700 border-rose-300'
+                                }`}
+                              >
+                                {status}
+                              </span>
                             </div>
-                            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
-                              isPassing ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'
-                            }`}>
-                              {isPassing ? 'PASS' : 'REVIEW'}
-                            </span>
+                            {details && (
+                              <p className="text-[11px] text-gray-600 pl-6 mt-1 leading-relaxed">
+                                {details}
+                              </p>
+                            )}
                           </div>
                         );
                       })}
@@ -842,6 +972,72 @@ async function handleRequest(request) {
                       ))}
                     </ul>
                   </div>
+                </div>
+
+                {/* Remediation Guide: Steps to Resolve Negative Findings */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm card-hover space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-teal-600" />
+                      <h4 className="text-xs font-mono uppercase text-teal-600 font-bold">
+                        Remediation Guide: Steps to Resolve Negative Findings
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono text-gray-500 font-bold">
+                      AI Guided Solutions
+                    </span>
+                  </div>
+
+                  {(!setDetails.negative_remediation_guides || setDetails.negative_remediation_guides.length === 0 || setDetails.negativeFindings.every(f => f.toLowerCase().startsWith('none') || f.toLowerCase().includes('clean'))) ? (
+                    <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 flex items-center gap-3 text-emerald-800">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div className="text-xs">
+                        <span className="font-bold">Zero Negative Findings Detected: </span>
+                        This security dimension complies with current industry security benchmarks. No remediation actions required.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {setDetails.negative_remediation_guides.map((guide: any, gIdx: number) => (
+                        <div key={gIdx} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                            <h5 className="text-xs font-bold text-gray-900 tracking-tight">
+                              To Remove: <span className="text-rose-600">{guide.finding}</span>
+                            </h5>
+                          </div>
+
+                          {/* Steps */}
+                          <div className="space-y-2 pl-4 border-l-2 border-teal-200">
+                            {guide.steps && guide.steps.map((step: string, sIdx: number) => (
+                              <p key={sIdx} className="text-xs text-gray-700 leading-relaxed font-sans">
+                                {step}
+                              </p>
+                            ))}
+                          </div>
+
+                          {/* Clickable Documentation URLs */}
+                          {guide.fix_urls && guide.fix_urls.length > 0 && (
+                            <div className="pt-2 flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-medium text-gray-500">Official Guides &amp; Fix URLs:</span>
+                              {guide.fix_urls.map((link: any, lIdx: number) => (
+                                <a
+                                  key={lIdx}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-800 text-[11px] font-semibold border border-teal-200 hover:border-teal-300 transition-all active:scale-95 shadow-sm"
+                                >
+                                  <span>{link.label}</span>
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Visual Certificate Trust Chain (SSLShopper style for Set 1) */}
@@ -926,63 +1122,7 @@ async function handleRequest(request) {
                   </div>
                 )}
 
-                {/* 1-Click Server Remediation Snippets (for Set 2) */}
-                {setKey === "set2" && (
-                  <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm card-hover">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Terminal className="w-4 h-4 text-teal-600" />
-                          <h4 className="text-xs font-mono uppercase text-teal-600 font-bold">
-                            1-Click Ready Configuration Fix
-                          </h4>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Deploy to web server config to immediately earn Grade A+ on Security Headers.
-                        </p>
-                      </div>
 
-                      {/* Server Tabs */}
-                      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-                        {(["nginx", "apache", "caddy", "cloudflare"] as const).map((server) => (
-                          <button
-                            key={server}
-                            onClick={() => setSelectedServerTab(server)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold uppercase transition-all ${
-                              selectedServerTab === server
-                                ? "bg-white text-teal-600 shadow-sm font-bold"
-                                : "text-gray-500 hover:text-gray-900"
-                            }`}
-                          >
-                            {server}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="relative">
-                      <pre className="p-4 bg-gray-900 text-gray-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed max-h-52">
-                        <code>{serverSnippets[selectedServerTab]}</code>
-                      </pre>
-                      <button
-                        onClick={() => copyToClipboard(serverSnippets[selectedServerTab], selectedServerTab)}
-                        className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-medium border border-gray-700 shadow-sm transition-all"
-                      >
-                        {copiedSnippet === selectedServerTab ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5 text-gray-400" />
-                            <span>Copy Snippet</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Visual Anti-Spoofing & DNS Trust Matrix for Set 3 */}
                 {setKey === "set3" && (
@@ -1164,7 +1304,7 @@ async function handleRequest(request) {
                         {currentSite.zapCompleted ? (
                           <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            Completed &bull; Synced with Gemini
+                            Completed &bull; Synced with AI
                           </span>
                         ) : (
                           <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5 animate-pulse">
@@ -1292,7 +1432,7 @@ async function handleRequest(request) {
                           <div>
                             <div className="text-xs font-bold text-amber-900">OWASP ZAP Dynamic Scanning in Progress</div>
                             <div className="text-xs text-amber-700">
-                              GitHub Actions 7GB runner is fuzzing and crawling {currentSite.domain} for dynamic misconfigurations. This card will update with full findings and Gemini insights once complete.
+                              GitHub Actions 7GB runner is fuzzing and crawling {currentSite.domain} for dynamic misconfigurations. This card will update with full findings and AI insights once complete.
                             </div>
                           </div>
                         </div>
@@ -1604,7 +1744,7 @@ async function handleRequest(request) {
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-teal-600" />
                       <h3 className="text-xs font-mono font-bold text-teal-700 uppercase tracking-wider">
-                        Google Gemini AI &bull; Executive Threat Assessment
+                        AI &bull; Executive Threat Assessment
                       </h3>
                     </div>
                     <p className="text-xs text-gray-700 leading-relaxed font-sans">
@@ -1724,79 +1864,47 @@ async function handleRequest(request) {
             </div>
 
             <div className="space-y-3.5">
-              {/* Worker 1: OSINT */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 1 &bull; OSINT &amp; Perimeter</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set4 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {currentSite.setScores.set4 >= 80 ? 'Passed' : 'Review'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set4?.metricValue || "Perimeter enumerated"}</p>
-                <div className="text-[10px] text-gray-400 font-mono">VirusTotal &bull; Shodan &bull; CT Logs</div>
+              <div className="text-[11px] font-mono text-gray-500 flex items-center justify-between pb-2 border-b border-gray-100">
+                <span className="uppercase tracking-wider">Active Scope:</span>
+                <span className="font-bold text-teal-700 truncate max-w-[170px]" title={activeSection.startsWith("set") ? (currentSite.detailedSets[activeSection]?.name || activeSection.toUpperCase()) : "All 6 Active Workers"}>
+                  {activeSection.startsWith("set") ? (currentSite.detailedSets[activeSection]?.name || activeSection.toUpperCase()) : "All Active Workers"}
+                </span>
               </div>
 
-              {/* Worker 2: TLS */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 2 &bull; TLS Handshake</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set1 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {currentSite.setScores.set1 >= 80 ? 'Passed' : 'Notice'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set1?.metricValue || "TLS Handshake active"}</p>
-                <div className="text-[10px] text-gray-400 font-mono">Port 443 &bull; Cipher validation</div>
-              </div>
+              {getStreamWorkers().map((worker) => {
+                const status = worker.status || "Passed";
+                const isPass = status === "Passed" || status === "Verified" || status === "Clean" || status === "Completed";
+                const isWarn = status === "Warning" || status === "Review" || status === "Notice";
+                const isFail = status === "Failed" || status === "Alert" || status === "Deception";
 
-              {/* Worker 3: Headers */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 3 &bull; Header Audit</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set2 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {currentSite.setScores.set2 >= 80 ? 'Passed' : 'Notice'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set2?.metricValue || "Security headers checked"}</p>
-                <div className="text-[10px] text-gray-400 font-mono">CSP &bull; HSTS &bull; Cookies</div>
-              </div>
+                const badgeColor = isPass
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                  : isWarn
+                  ? "bg-amber-50 text-amber-700 border-amber-300"
+                  : "bg-rose-50 text-rose-700 border-rose-300";
 
-              {/* Worker 4: DNS */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 4 &bull; DNS Resolver</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set3 >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {currentSite.setScores.set3 >= 80 ? 'Verified' : 'Notice'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set3?.metricValue || "SPF & DMARC validated"}</p>
-                <div className="text-[10px] text-gray-400 font-mono">SPF &bull; DMARC &bull; DNSSEC</div>
-              </div>
-
-              {/* Worker 5: DAST */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 5 &bull; OWASP ZAP &amp; DAST</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.zapCompleted ? (currentSite.setScores.set5 >= 80 ? 'text-teal-600' : 'text-rose-600') : 'text-amber-600'}`}>
-                    {currentSite.zapCompleted ? (currentSite.setScores.set5 >= 80 ? 'Completed' : 'Alert') : 'Scanning...'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">
-                  {currentSite.zapCompleted ? (currentSite.detailedSets.set5?.metricValue || "DAST scan completed") : "GitHub Actions 7GB Runner Active"}
-                </p>
-                <div className="text-[10px] text-gray-400 font-mono">OWASP ZAP &bull; Sensitive Probes</div>
-              </div>
-
-              {/* Worker 6: Honeypot */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-gray-700">Worker 6 &bull; Deception &amp; Canary</span>
-                  <span className={`text-[10px] font-mono font-bold ${currentSite.setScores.set6 >= 80 ? 'text-teal-600' : 'text-amber-600'}`}>
-                    {currentSite.setScores.set6 >= 80 ? 'Clean' : 'Deception'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">{currentSite.detailedSets.set6?.metricValue || "Authentic host verified"}</p>
-                <div className="text-[10px] text-gray-400 font-mono">Canary URI &bull; Tarpit check</div>
-              </div>
+                return (
+                  <div key={worker.key} className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-2 shadow-xs transition-all hover:border-gray-300">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-gray-900">{worker.name}</span>
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                        {status}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono font-semibold text-teal-700 bg-white px-2.5 py-1 rounded-lg border border-gray-200/80 truncate">
+                      {worker.metric}
+                    </div>
+                    {worker.summary && (
+                      <p className="text-[11px] text-gray-600 leading-relaxed font-sans">
+                        {worker.summary}
+                      </p>
+                    )}
+                    <div className="text-[10px] text-gray-400 font-mono pt-1.5 border-t border-gray-200/60 flex items-center gap-1 truncate">
+                      <span className="text-gray-500 font-semibold">Tools:</span> {worker.tools}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

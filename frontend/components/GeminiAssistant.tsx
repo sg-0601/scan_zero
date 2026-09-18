@@ -21,7 +21,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: `Hello! I am your **Google Gemini Cyber Security Lead**. I've synthesized all telemetry from Shodan, VirusTotal, URLScan, AlienVault, SSL/TLS, DNS, and HTTP security headers for **${domain}**.\n\nYou can ask me anything about the scan results, attack chain scenarios, or request tailored configuration code (Nginx, Apache, Cloudflare, DNS).`
+      content: `Hello! I am your **AI Cyber Security Lead**. I've synthesized all telemetry from Shodan, VirusTotal, URLScan, AlienVault, SSL/TLS, DNS, and HTTP security headers for **${domain}**.\n\nYou can ask me anything about the scan results, attack chain scenarios, or request tailored configuration code (Nginx, Apache, Cloudflare, DNS).`
     }
   ]);
   const [input, setInput] = useState("");
@@ -70,7 +70,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
       });
 
       if (!res.ok) {
-        throw new Error("Failed to get response from Gemini");
+        throw new Error("Failed to get response from AI assistant");
       }
 
       const data = await res.json();
@@ -84,7 +84,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
         ...prev,
         {
           role: "assistant",
-          content: `⚠️ *Communication issue with Gemini service: ${err.message}. Please ensure the backend is active.*`
+          content: `⚠️ *Communication issue with AI service: ${err.message}. Please ensure the backend is active.*`
         }
       ]);
     } finally {
@@ -114,7 +114,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-white font-bold text-base md:text-lg flex items-center gap-2">
-                Ask Gemini &bull; AI Security Assistant
+                Ask AI &bull; Security Assistant
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
                 gemini-3.8-flash
@@ -210,7 +210,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
                   </div>
                   <div className="bg-white border border-gray-200/80 rounded-2xl p-4 text-xs text-gray-500 flex items-center gap-2 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-teal-500 animate-ping"></span>
-                    Gemini is correlating scan findings and synthesizing response...
+                    AI is correlating scan findings and synthesizing response...
                   </div>
                 </div>
               )}
@@ -229,7 +229,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={`Ask Gemini about ${domain}'s vulnerabilities, configuration, or attack vectors...`}
+                placeholder={`Ask AI about ${domain}'s vulnerabilities, configuration, or attack vectors...`}
                 disabled={loading}
                 className="flex-1 bg-gray-50 border border-gray-200 focus:border-teal-500 focus:bg-white text-gray-900 px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
               />

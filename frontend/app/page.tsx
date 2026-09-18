@@ -233,6 +233,7 @@ export default function Home() {
       scanId: data.id || rJson.scan_id,
       zapCompleted: Boolean(rJson.zap_completed),
       zapAlerts: rJson.zap_alerts || [],
+      workerIntelligenceStream: rJson.worker_intelligence_stream || rJson.gemini_intelligence?.worker_intelligence_stream,
       url,
       domain,
       overallScore: score,

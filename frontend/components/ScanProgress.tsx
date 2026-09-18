@@ -27,7 +27,7 @@ export default function ScanProgress({ workers = [] }: { workers?: WorkerStatus[
     { id: "w3", name: "3. HTTP Security Headers & Cookies", status: elapsed > 8 ? "done" : elapsed > 3 ? "running" : "waiting" },
     { id: "w4", name: "4. DNS & Email Spoofing Defense", status: elapsed > 11 ? "done" : elapsed > 5 ? "running" : "waiting" },
     { id: "w5", name: "5. Active DAST Surface Probes", status: elapsed > 14 ? "done" : elapsed > 8 ? "running" : "waiting" },
-    { id: "w6", name: "6. Google Gemini AI Synthesis (gemini-3.8-flash)", status: elapsed > 15 ? "running" : "waiting" },
+    { id: "w6", name: "6. AI Multi-Vector Synthesis", status: elapsed > 15 ? "running" : "waiting" },
   ];
 
   const runningWorkers = defaultWorkers.filter(w => w.status === "running" || w.status === "done").length;

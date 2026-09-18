@@ -268,7 +268,8 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
         calculate_score,
         assign_grade,
         generate_detailed_sets,
-        generate_scoring_breakdown
+        generate_scoring_breakdown,
+        generate_worker_intelligence_stream
     )
     
     set_scores = calculate_category_scores(raw_findings, tool_outputs)
@@ -276,6 +277,7 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
     grade = assign_grade(score)
     detailed_sets = generate_detailed_sets(domain, tool_outputs, set_scores, raw_findings)
     scoring_breakdown = generate_scoring_breakdown(domain, raw_findings, set_scores)
+    worker_intelligence_stream = generate_worker_intelligence_stream(set_scores, tool_outputs)
 
     return {
         "ai_powered": False,
@@ -291,6 +293,7 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
         "ai_grade": grade,
         "set_scores": set_scores,
         "detailed_sets": detailed_sets,
+        "worker_intelligence_stream": worker_intelligence_stream,
         "scoring_breakdown": scoring_breakdown,
         "multi_site_comparison_insight": (
             f"{domain} scored {score}/100 (Grade {grade}). "
@@ -404,6 +407,56 @@ Return a STRICT, VALID JSON object with the following schema:
   "ai_grade": "A+", "A", "B", "C", "D", or "F",
   "threat_verdict": "Single punchy verdict sentence (e.g. 'Hardened Perimeter with Critical Email Spoofing Vulnerabilities')",
   "executive_summary": "2-4 sentence executive overview for CTOs and developers, summarizing real strengths and main risks.",
+  "worker_intelligence_stream": {{
+    "w1_osint": {{
+      "worker_name": "Worker 1: OSINT & Threat Intel",
+      "section_id": "set4",
+      "status": "Passed" | "Warning" | "Failed",
+      "metric_value": "Telemetry metric string (e.g. '14 Subdomains • 0 Breaches')",
+      "summary": "1-2 sentence AI verdict on OSINT findings",
+      "tools": "VirusTotal, Shodan, URLScan.io, AlienVault OTX, Hudson Rock, crt.sh"
+    }},
+    "w2_tls": {{
+      "worker_name": "Worker 2: TLS & Cryptography",
+      "section_id": "set1",
+      "status": "Passed" | "Warning" | "Failed",
+      "metric_value": "Telemetry metric string (e.g. 'TLS 1.3 (180d left)')",
+      "summary": "1-2 sentence AI verdict on TLS and crypto",
+      "tools": "Python ssl, socket, cryptography, OpenSSL"
+    }},
+    "w3_headers": {{
+      "worker_name": "Worker 3: HTTP Headers & CSP",
+      "section_id": "set2",
+      "status": "Passed" | "Warning" | "Failed",
+      "metric_value": "Telemetry metric string (e.g. '2/6 Headers Active')",
+      "summary": "1-2 sentence AI verdict on response headers",
+      "tools": "httpx, Cookie Security Auditor, WAF Detector"
+    }},
+    "w4_dns": {{
+      "worker_name": "Worker 4: DNS & Anti-Spoofing",
+      "section_id": "set3",
+      "status": "Passed" | "Warning" | "Failed",
+      "metric_value": "Telemetry metric string (e.g. 'SPF: Yes • DMARC: reject')",
+      "summary": "1-2 sentence AI verdict on DNS and SPF/DMARC",
+      "tools": "dnspython, SPF Parser, DMARC Evaluator, DNSSEC"
+    }},
+    "w5_dast": {{
+      "worker_name": "Worker 5: DAST & Cloud ZAP",
+      "section_id": "set5",
+      "status": "Passed" | "Warning" | "Failed",
+      "metric_value": "Telemetry metric string (e.g. '0 ZAP Alerts • Clean Probes')",
+      "summary": "1-2 sentence AI verdict on DAST & OWASP ZAP alerts",
+      "tools": "OWASP ZAP (GitHub Actions 7GB Cloud Runner), Nuclei DAST, Path Prober"
+    }},
+    "w6_honeypot": {{
+      "worker_name": "Worker 6: Deception Posture",
+      "section_id": "set6",
+      "status": "Passed" | "Failed",
+      "metric_value": "Telemetry metric string (e.g. 'Authentic Host')",
+      "summary": "1-2 sentence AI verdict on canary probes",
+      "tools": "Canary Probe Analyzer, Tarpit Latency Meter, WAFW00F"
+    }}
+  }},
   "set_scores": {{
     "set1": 0 to 100 integer (Set 1: Network & TLS Encryption),
     "set2": 0 to 100 integer (Set 2: HTTP Security Headers & CSP),
@@ -418,8 +471,21 @@ Return a STRICT, VALID JSON object with the following schema:
       "score": 0 to 100 integer,
       "grade": "A+", "A", "B", "C", "D", or "F",
       "analyzedItems": ["TLS Protocol Negotiation", "Cipher Suite Strength", "Port 80 Cleartext Redirect", "Certificate Validity Period"],
+      "analyzed_items": [
+        {{ "item": "TLS Protocol Negotiation", "status": "PASS" | "FAIL", "details": "Dynamic evaluation of TLS protocol version." }},
+        {{ "item": "Cipher Suite Strength", "status": "PASS" | "WARN", "details": "Dynamic evaluation of cipher suite strength." }},
+        {{ "item": "Port 80 Cleartext Redirect", "status": "PASS" | "FAIL", "details": "Dynamic evaluation of port 80 redirect." }},
+        {{ "item": "Certificate Trust Chain", "status": "PASS" | "WARN" | "FAIL", "details": "Dynamic evaluation of cert validity and CA." }}
+      ],
       "positiveFindings": ["List of 1-3 verified strengths from telemetry"],
       "negativeFindings": ["List of 1-3 gaps or deductions from telemetry"],
+      "negative_remediation_guides": [
+        {{
+          "finding": "Name of negative finding to remove",
+          "steps": ["1. Step one with exact commands...", "2. Step two...", "3. Verification..."],
+          "fix_urls": [{{ "label": "Official Docs Name", "url": "https://valid-documentation-url" }}]
+        }}
+      ],
       "whyScoreGiven": "Clear, authoritative explanation of why this score was given based on real data",
       "evidence": "Concrete evidence summary (e.g. 'TLS 1.3 • Cipher: AES-256-GCM • Expires in 180 days')",
       "recommendation": "Specific actionable recommendation to improve Set 1",
@@ -435,9 +501,24 @@ Return a STRICT, VALID JSON object with the following schema:
       "name": "Set 2: HTTP Security Headers",
       "score": 0 to 100 integer,
       "grade": "A+", "A", "B", "C", "D", or "F",
-      "analyzedItems": ["Content-Security-Policy (CSP)", "Strict-Transport-Security (HSTS)", "X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy"],
+      "analyzedItems": ["Content-Security-Policy (CSP)", "Strict-Transport-Security (HSTS)", "X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy", "Cookie Security Attributes"],
+      "analyzed_items": [
+        {{ "item": "Content-Security-Policy (CSP)", "status": "PASS" | "FAIL", "details": "Dynamic status of CSP header." }},
+        {{ "item": "Strict-Transport-Security (HSTS)", "status": "PASS" | "FAIL", "details": "Dynamic status of HSTS header." }},
+        {{ "item": "X-Frame-Options", "status": "PASS" | "FAIL", "details": "Dynamic status of XFO framing protection." }},
+        {{ "item": "X-Content-Type-Options", "status": "PASS" | "FAIL", "details": "Dynamic status of nosniff header." }},
+        {{ "item": "Referrer-Policy", "status": "PASS" | "WARN", "details": "Dynamic status of Referrer-Policy." }},
+        {{ "item": "Cookie Security Attributes", "status": "PASS" | "WARN", "details": "Dynamic status of cookie attributes." }}
+      ],
       "positiveFindings": ["List of active headers detected"],
       "negativeFindings": ["List of missing or flawed headers"],
+      "negative_remediation_guides": [
+        {{
+          "finding": "Name of negative finding to remove",
+          "steps": ["1. Step one...", "2. Step two..."],
+          "fix_urls": [{{ "label": "Official Docs Name", "url": "https://valid-documentation-url" }}]
+        }}
+      ],
       "whyScoreGiven": "Explanation of score based on presence/absence of critical defense headers",
       "evidence": "Concrete evidence (e.g. 'Present: nosniff • Missing: CSP, HSTS, XFO')",
       "recommendation": "Step-by-step recommendation for web server configuration",
@@ -450,8 +531,21 @@ Return a STRICT, VALID JSON object with the following schema:
       "score": 0 to 100 integer,
       "grade": "A+", "A", "B", "C", "D", or "F",
       "analyzedItems": ["SPF Authentication Record", "DMARC Policy Enforcement", "MX Server Validation", "DNSSEC Cryptographic Chain"],
+      "analyzed_items": [
+        {{ "item": "SPF Authentication Record", "status": "PASS" | "FAIL", "details": "Dynamic status of SPF." }},
+        {{ "item": "DMARC Policy Enforcement", "status": "PASS" | "WARN" | "FAIL", "details": "Dynamic status of DMARC." }},
+        {{ "item": "MX Mail Server Verification", "status": "PASS" | "WARN", "details": "Dynamic status of MX servers." }},
+        {{ "item": "DNSSEC Cryptographic Chain", "status": "PASS" | "WARN", "details": "Dynamic status of DNSSEC." }}
+      ],
       "positiveFindings": ["List of positive DNS protections found"],
       "negativeFindings": ["List of DNS spoofing weaknesses found"],
+      "negative_remediation_guides": [
+        {{
+          "finding": "Name of negative finding to remove",
+          "steps": ["1. Step one...", "2. Step two..."],
+          "fix_urls": [{{ "label": "Official Docs Name", "url": "https://valid-documentation-url" }}]
+        }}
+      ],
       "whyScoreGiven": "Explanation of score based on SPF/DMARC/DNSSEC status",
       "evidence": "Concrete evidence (e.g. 'SPF: Active • DMARC: p=none • DNSSEC: Inactive')",
       "recommendation": "Recommendation for DNS zone hardening",
@@ -467,8 +561,21 @@ Return a STRICT, VALID JSON object with the following schema:
       "score": 0 to 100 integer,
       "grade": "A+", "A", "B", "C", "D", or "F",
       "analyzedItems": ["VirusTotal 70+ Vendor Reputation", "Shodan Port & CVE Audit", "Dark Web Credential Breaches", "Subdomain Footprint"],
+      "analyzed_items": [
+        {{ "item": "VirusTotal 70+ AV Reputation", "status": "PASS" | "FAIL", "details": "Dynamic VirusTotal evaluation." }},
+        {{ "item": "Shodan Ports & Exposure Audit", "status": "PASS" | "FAIL", "details": "Dynamic Shodan evaluation." }},
+        {{ "item": "Dark Web Infostealer Breaches", "status": "PASS" | "FAIL", "details": "Dynamic breach evaluation." }},
+        {{ "item": "Subdomain Perimeter Footprint", "status": "PASS" | "WARN", "details": "Dynamic subdomain footprint evaluation." }}
+      ],
       "positiveFindings": ["Positive OSINT findings"],
       "negativeFindings": ["Negative OSINT findings or open port risks"],
+      "negative_remediation_guides": [
+        {{
+          "finding": "Name of negative finding to remove",
+          "steps": ["1. Step one...", "2. Step two..."],
+          "fix_urls": [{{ "label": "Official Docs Name", "url": "https://valid-documentation-url" }}]
+        }}
+      ],
       "whyScoreGiven": "Explanation based on VirusTotal, Shodan, and breach telemetry",
       "evidence": "Concrete evidence (e.g. 'VirusTotal 0/70 clean • 0 breaches found • 2 open ports')",
       "recommendation": "Recommendation for perimeter attack surface reduction",
@@ -482,9 +589,22 @@ Return a STRICT, VALID JSON object with the following schema:
       "name": "Set 5: DAST & Vulnerabilities",
       "score": 0 to 100 integer,
       "grade": "A+", "A", "B", "C", "D", or "F",
-      "analyzedItems": ["Sensitive File Probes (/.env, /.git)", "OWASP ZAP Cloud Dynamic Analysis", "Diagnostic Endpoints", "Web Server Fingerprints"],
+      "analyzedItems": ["Sensitive File Probes (/.env, /.git)", "OWASP ZAP Cloud Dynamic Analysis", "Diagnostic Endpoints & Backups", "Web Server Fingerprints"],
+      "analyzed_items": [
+        {{ "item": "Sensitive File Probes (.env, .git)", "status": "PASS" | "FAIL", "details": "Dynamic evaluation of probe responses." }},
+        {{ "item": "OWASP ZAP Cloud Dynamic Analysis", "status": "PASS" | "FAIL" | "WARN", "details": "Dynamic evaluation of OWASP ZAP alerts." }},
+        {{ "item": "Diagnostic Endpoints & Backups", "status": "PASS" | "FAIL", "details": "Dynamic evaluation of diagnostic endpoints." }},
+        {{ "item": "Web Server Fingerprints", "status": "PASS" | "WARN", "details": "Dynamic evaluation of server banner disclosure." }}
+      ],
       "positiveFindings": ["Positive probe findings (e.g. 404 blocked) or verified clean dynamic scan"],
       "negativeFindings": ["Any sensitive files or OWASP ZAP dynamic alerts detected"],
+      "negative_remediation_guides": [
+        {{
+          "finding": "Name of negative finding to remove",
+          "steps": ["1. Step one...", "2. Step two..."],
+          "fix_urls": [{{ "label": "Official Docs Name", "url": "https://valid-documentation-url" }}]
+        }}
+      ],
       "whyScoreGiven": "Explanation of score based on active probe responses and OWASP ZAP cloud dynamic findings",
       "evidence": "Concrete evidence (e.g. 'Probed /.env (404), /.git (404) • OWASP ZAP alerts summary')",
       "recommendation": "Recommendation for server directory and sensitive file blocking and OWASP ZAP alert remediation",
@@ -505,9 +625,21 @@ Return a STRICT, VALID JSON object with the following schema:
       "name": "Set 6: Deception & Honeypot",
       "score": 0 to 100 integer,
       "grade": "A+", "A", "B", "C", "D", or "F",
-      "analyzedItems": ["Canary Path Probes", "Tarpit Latency Analysis", "Honeypot Signature Detection"],
+      "analyzedItems": ["Canary URI Probe Behavior", "Tarpit Response Latency", "Host Authenticity Verification"],
+      "analyzed_items": [
+        {{ "item": "Canary URI Probe Behavior", "status": "PASS" | "FAIL", "details": "Dynamic canary probe evaluation." }},
+        {{ "item": "Tarpit Response Latency", "status": "PASS" | "WARN", "details": "Dynamic server response latency evaluation." }},
+        {{ "item": "Host Authenticity Verification", "status": "PASS" | "FAIL", "details": "Dynamic authenticity verification." }}
+      ],
       "positiveFindings": ["Positive findings (e.g. authentic error handling)"],
       "negativeFindings": ["Deception anomalies if any"],
+      "negative_remediation_guides": [
+        {{
+          "finding": "Name of negative finding to remove",
+          "steps": ["1. Step one...", "2. Step two..."],
+          "fix_urls": [{{ "label": "Official Docs Name", "url": "https://valid-documentation-url" }}]
+        }}
+      ],
       "whyScoreGiven": "Explanation of host authenticity score",
       "evidence": "Concrete evidence (e.g. 'Canary probes correctly returned 404/403 (Score: 0.0)')",
       "recommendation": "Recommendation on canary route behavior",
@@ -648,18 +780,60 @@ IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or 
         logger.warning("Gemini synthesis returned incomplete or unparseable JSON. Falling back to structured synthesizer.")
         return generate_fallback_intelligence(domain, url, worker_results, raw_findings)
 
+    from app.engine.scorer import (
+        calculate_category_scores,
+        generate_detailed_sets,
+        generate_worker_intelligence_stream,
+        build_negative_remediation_guides
+    )
+
     # Ensure all 6 set scores exist
     set_scores = parsed_json.get("set_scores", {})
+    fallback_set_scores = None
     if not isinstance(set_scores, dict) or len(set_scores) < 6:
-        from app.engine.scorer import calculate_category_scores
         fallback_set_scores = calculate_category_scores(raw_findings, worker_results)
         for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
             if k not in set_scores:
                 set_scores[k] = fallback_set_scores.get(k, 75)
         parsed_json["set_scores"] = set_scores
 
+    # Ensure worker_intelligence_stream exists and is fully populated
+    worker_stream = parsed_json.get("worker_intelligence_stream")
+    fallback_stream = generate_worker_intelligence_stream(set_scores, worker_results)
+    if not isinstance(worker_stream, dict) or len(worker_stream) < 6:
+        if not isinstance(worker_stream, dict):
+            worker_stream = {}
+        for wk, wdef in fallback_stream.items():
+            if wk not in worker_stream:
+                worker_stream[wk] = wdef
+    parsed_json["worker_intelligence_stream"] = worker_stream
+
+    # Ensure detailed_sets and its inner analyzed_items / negative_remediation_guides are complete
+    detailed_sets = parsed_json.get("detailed_sets", {})
+    fallback_detailed = generate_detailed_sets(domain, worker_results, set_scores, raw_findings)
+    if not isinstance(detailed_sets, dict):
+        detailed_sets = fallback_detailed
+        parsed_json["detailed_sets"] = detailed_sets
+    else:
+        for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
+            if k not in detailed_sets or not isinstance(detailed_sets[k], dict):
+                detailed_sets[k] = fallback_detailed.get(k, {})
+            else:
+                s_dict = detailed_sets[k]
+                fb_dict = fallback_detailed.get(k, {})
+                # Ensure analyzed_items is a list of structured dicts
+                if not s_dict.get("analyzed_items") or not isinstance(s_dict["analyzed_items"], list) or not all(isinstance(x, dict) and "item" in x for x in s_dict["analyzed_items"]):
+                    s_dict["analyzed_items"] = fb_dict.get("analyzed_items", [])
+                # Maintain legacy analyzedItems string list for backward compatibility
+                if not s_dict.get("analyzedItems"):
+                    s_dict["analyzedItems"] = [item["item"] if isinstance(item, dict) else str(item) for item in s_dict.get("analyzed_items", [])]
+                # Ensure negative_remediation_guides exists
+                if not s_dict.get("negative_remediation_guides") or not isinstance(s_dict["negative_remediation_guides"], list):
+                    negs = s_dict.get("negativeFindings", fb_dict.get("negativeFindings", []))
+                    s_dict["negative_remediation_guides"] = build_negative_remediation_guides(k, negs, domain)
+
     parsed_json["ai_powered"] = True
-    parsed_json["gemini_model_used"] = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-3.8-flash")
+    parsed_json["gemini_model_used"] = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-flash-lite-latest")
     parsed_json["analyzed_at"] = datetime.utcnow().isoformat()
     return parsed_json
 
