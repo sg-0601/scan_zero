@@ -181,8 +181,10 @@ def assign_grade(score: float) -> str:
     if score >= 50: return "D"
     return "F"
 
-def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict) -> dict:
+def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, findings: list = None) -> dict:
     """Generate rich, human-readable explanations based on real data for all 6 sets."""
+    if findings is None:
+        findings = worker_results.get("w5_dast", {}).get("findings", [])
     tls_info = worker_results.get("w2_tls", {}).get("raw_data", {}).get("tls", {})
     hdr_raw = worker_results.get("w3_headers", {}).get("raw_data", {})
     dns_raw = worker_results.get("w4_dns", {}).get("raw_data", {})

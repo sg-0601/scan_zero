@@ -147,7 +147,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     set_scores = calculate_category_scores(remediated_findings, worker_results_dict)
     score = calculate_score(remediated_findings, worker_results_dict, set_scores)
     grade = assign_grade(score)
-    detailed_sets = generate_detailed_sets(domain, worker_results_dict, set_scores)
+    detailed_sets = generate_detailed_sets(domain, worker_results_dict, set_scores, remediated_findings)
     scoring_breakdown = generate_scoring_breakdown(domain, remediated_findings, set_scores)
 
     # 9. Google Gemini Multi-Tool Intelligence Synthesis Engine

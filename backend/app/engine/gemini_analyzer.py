@@ -479,11 +479,13 @@ async def ask_gemini_scan_assistant(domain: str, scan_results: Dict[str, Any], q
     }
 
     conversation_context = ""
+    nl = "\n"
     if history:
         for turn in history[-4:]:
             role = "User" if turn.get("role") == "user" else "Assistant"
-            conversation_context += f"{role}: {turn.get('content')}\n"
+            conversation_context += f"{role}: {turn.get('content')}{nl}"
 
+    prev_convo = f"PREVIOUS CONVERSATION:{nl}{conversation_context}" if conversation_context else ""
     prompt = f"""
 You are the ScanZero AI Cyber Security Assistant powered by Google Gemini.
 You have full access to the security audit and multi-tool scan results for the target website: '{domain}'.
@@ -491,7 +493,7 @@ You have full access to the security audit and multi-tool scan results for the t
 SCAN CONTEXT:
 {json.dumps(context_brief, indent=2)}
 
-{f"PREVIOUS CONVERSATION:\n{conversation_context}" if conversation_context else ""}
+{prev_convo}
 
 USER'S QUESTION:
 "{question}"
