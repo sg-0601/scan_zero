@@ -902,7 +902,7 @@ async function handleRequest(request) {
                       <CheckCircle2 className="w-3.5 h-3.5" /> Positive Findings
                     </h4>
                     <ul className="space-y-2 text-xs text-gray-600">
-                      {setDetails.positiveFindings.map((pos, idx) => (
+                      {setDetails.positiveFindings?.map((pos: string, idx: number) => (
                         <li key={idx} className="p-2 rounded-lg bg-gray-50 border border-emerald-200 flex items-start gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0"></span>
                           <span>{pos}</span>
@@ -916,7 +916,7 @@ async function handleRequest(request) {
                       <XCircle className="w-3.5 h-3.5" /> Negative Findings &amp; Gaps
                     </h4>
                     <ul className="space-y-2 text-xs text-gray-600">
-                      {setDetails.negativeFindings.map((neg, idx) => (
+                      {setDetails.negativeFindings?.map((neg: string, idx: number) => (
                         <li key={idx} className="p-2 rounded-lg bg-gray-50 border border-rose-200 flex items-start gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0"></span>
                           <span>{neg}</span>
@@ -940,7 +940,7 @@ async function handleRequest(request) {
                     </span>
                   </div>
 
-                  {(!setDetails.negative_remediation_guides || setDetails.negative_remediation_guides.length === 0 || setDetails.negativeFindings.every(f => f.toLowerCase().startsWith('none') || f.toLowerCase().includes('clean'))) ? (
+                  {(!setDetails.negative_remediation_guides || setDetails.negative_remediation_guides.length === 0 || setDetails.negativeFindings?.every((f: string) => f.toLowerCase().startsWith('none') || f.toLowerCase().includes('clean'))) ? (
                     <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 flex items-center gap-3 text-emerald-800">
                       <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                       <div className="text-xs">
@@ -1410,7 +1410,7 @@ async function handleRequest(request) {
 
                       {setDetails.probed_paths && setDetails.probed_paths.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          {setDetails.probed_paths.map((item, pIdx) => (
+                          {setDetails.probed_paths.map((item: any, pIdx: number) => (
                             <div key={pIdx} className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
                               <div>
                                 <div className="text-xs font-mono font-bold text-gray-900">{item.path}</div>
@@ -1728,7 +1728,7 @@ async function handleRequest(request) {
                       <span className="text-[10px] font-mono text-gray-400 font-bold">{currentSite.attackChain.length} Stages Identified</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {currentSite.attackChain.map((step, sIdx) => (
+                      {currentSite.attackChain.map((step: any, sIdx: number) => (
                         <div key={sIdx} className="bg-gray-50 border border-gray-200 p-3.5 rounded-xl space-y-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">
