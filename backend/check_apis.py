@@ -28,7 +28,7 @@ try:
     from dotenv import load_dotenv
     env_file = Path(__file__).resolve().parent / ".env"
     if not env_file.exists():
-        env_file = Path(__file__).resolve().parent / "backend" / ".env"
+        env_file = Path(__file__).resolve().parent / ".." / ".env"
     load_dotenv(dotenv_path=env_file)
 except ImportError:
     pass
@@ -136,7 +136,7 @@ async def check_gemini(key: str) -> dict:
     if not key:
         return {"name": "Google Gemini Generative AI", "status": "SKIP", "ms": 0, "msg": "GEMINI_API_KEY not set in .env"}
     start = time.perf_counter()
-    models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest"]
+    models = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-2.5-flash"]
     for model in models:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
@@ -255,6 +255,31 @@ async def check_owasp_zap(zap_url: str, zap_key: str) -> dict:
         return {"name": "OWASP ZAP Dynamic Daemon", "status": "SKIP", "ms": 0, "msg": "Optional ZAP daemon offline (start with --profile full)"}
 
 
+async def check_github_cloud_zap(token: str, repo: str, backend_url: str) -> dict:
+    if not token:
+        return {"name": "GitHub Actions Cloud ZAP", "status": "SKIP", "ms": 0, "msg": "GITHUB_TOKEN not set in .env"}
+    start = time.perf_counter()
+    try:
+        repo = repo or "sg-0601/scan_zero"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "ScanZero-Diagnostic"
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"https://api.github.com/repos/{repo}/actions/workflows/zap-ondemand.yml", headers=headers)
+        ms = int((time.perf_counter() - start) * 1000)
+        if resp.status_code == 200:
+            data = resp.json()
+            state = data.get("state", "active")
+            name = data.get("name", "On-Demand ZAP Scanner")
+            cb_msg = f" • Callback: {backend_url}" if backend_url else ""
+            return {"name": "GitHub Actions Cloud ZAP", "status": "PASS", "ms": ms, "msg": f"Auth OK ({repo}) • Workflow: '{name}' ({state}) • 7GB Runner Ready{cb_msg}"}
+        return {"name": "GitHub Actions Cloud ZAP", "status": "FAIL", "ms": ms, "msg": f"Workflow lookup error (HTTP {resp.status_code})"}
+    except Exception as e:
+        return {"name": "GitHub Actions Cloud ZAP", "status": "FAIL", "ms": 0, "msg": str(e)[:60]}
+
+
 async def main():
     parser = argparse.ArgumentParser(description="ScanZero Threat Intelligence API Health Diagnostic")
     parser.add_argument("--domain", default="cloudflare.com", help="Domain to use for read-only validation")
@@ -275,6 +300,9 @@ async def main():
     leakcheck_key = os.getenv("LEAKCHECK_API_KEY", "")
     zap_url = os.getenv("ZAP_API_URL", "")
     zap_key = os.getenv("ZAP_API_KEY", "")
+    github_token = os.getenv("GITHUB_TOKEN", "")
+    github_repo = os.getenv("GITHUB_REPO", "sg-0601/scan_zero")
+    backend_url = os.getenv("BACKEND_PUBLIC_URL", "")
 
     tasks = [
         check_virustotal(domain, vt_key),
@@ -289,6 +317,7 @@ async def main():
         check_first_epss(),
         check_leakcheck(domain, leakcheck_key),
         check_wafw00f(),
+        check_github_cloud_zap(github_token, github_repo, backend_url),
         check_owasp_zap(zap_url, zap_key),
     ]
 

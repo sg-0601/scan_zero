@@ -87,16 +87,16 @@ export default function ScanResultsPage() {
   // Extract real results or fallback
   const rawResults = data?.results_json || data?.results;
   const targetDomain = data?.domain || rawResults?.domain || "Target Website";
-  const overallScore = Math.round(data?.score ?? rawResults?.score ?? 78);
-  const grade = data?.grade || rawResults?.grade || "B";
+  const overallScore = Math.round(data?.score ?? rawResults?.score ?? 0);
+  const grade = data?.grade || rawResults?.grade || "N/A";
   const findings = rawResults?.findings || [];
 
   const setScores = rawResults?.set_scores;
   const categories = [
-    { name: "Crypto & TLS", score: setScores?.set1 ?? Math.min(100, Math.round(overallScore * 1.05)) },
-    { name: "Headers & CSP", score: setScores?.set2 ?? Math.min(100, Math.round(overallScore * 0.95)) },
-    { name: "DNS & Anti-Spoof", score: setScores?.set3 ?? Math.min(100, Math.round(overallScore * 1.02)) },
-    { name: "Surface & DAST", score: setScores?.set4 ?? Math.min(100, Math.round(overallScore * 0.98)) },
+    { name: "Crypto & TLS", score: setScores?.set1 ?? 0 },
+    { name: "Headers & CSP", score: setScores?.set2 ?? 0 },
+    { name: "DNS & Anti-Spoof", score: setScores?.set3 ?? 0 },
+    { name: "Surface & DAST", score: setScores?.set4 ?? 0 },
   ];
 
   return (

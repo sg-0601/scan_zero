@@ -187,6 +187,18 @@ def generate_fixes(findings: list) -> list:
             )
             f["remediation_type"] = "text"
 
+        # 17. OWASP ZAP Dynamic Findings
+        elif "owasp zap" in title or cat == "dast":
+            zap_sol = f.get("solution") or "Review and address OWASP dynamic vulnerability alert."
+            f["remediation_text"] = zap_sol[:200]
+            f["remediation_code"] = (
+                f"# OWASP ZAP Cloud Advisory:\n"
+                f"# Title: {f.get('title')}\n"
+                f"# Solution: {zap_sol}\n"
+                f"# Reference CWE: {evidence.get('cweid', 'N/A')}"
+            )
+            f["remediation_type"] = "text"
+
         else:
             f["remediation_text"] = "Review server security configuration and follow OWASP best practices."
             f["remediation_code"] = (

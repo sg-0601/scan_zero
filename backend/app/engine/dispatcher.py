@@ -159,6 +159,16 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         from app.engine.gemini_analyzer import generate_fallback_intelligence
         gemini_intel = generate_fallback_intelligence(domain, url, worker_results_dict, remediated_findings)
 
+    # Initialize baseline summary items
+    status_text = (
+        "Hardened against web attacks. Superior cryptographic posture and email defenses." if score >= 80 else
+        "Moderate security posture. Review recommended security headers and email enforcement." if score >= 60 else
+        "Elevated risk surface. Missing critical transport layer defenses and baseline headers."
+    )
+    strengths = ["Core transport encryption verified."] if score >= 70 else ["Basic domain resolution operational."]
+    critical_issues = [f["title"] for f in remediated_findings if f.get("severity") in ("critical", "high")]
+    recommendations = []
+
     # 10. Harmonize Final Results with Gemini's AI Intelligence
     server_hardening = {}
     if gemini_intel:
@@ -166,14 +176,9 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
             score = int(gemini_intel["ai_score"])
             grade = gemini_intel.get("ai_grade") or assign_grade(score)
         
-        status_text = gemini_intel.get("threat_verdict") or (
-            "Hardened against web attacks. Superior cryptographic posture and email defenses." if score >= 80 else
-            "Moderate security posture. Review recommended security headers and email enforcement." if score >= 60 else
-            "Elevated risk surface. Missing critical transport layer defenses and baseline headers."
-        )
-        
-        strengths = gemini_intel.get("strengths") or strengths or ["Core transport encryption verified."]
-        critical_issues = gemini_intel.get("critical_risks") or critical_issues or []
+        status_text = gemini_intel.get("threat_verdict") or status_text
+        strengths = gemini_intel.get("strengths") or strengths
+        critical_issues = gemini_intel.get("critical_risks") or critical_issues
         
         # Adopt Gemini's full 6-set dynamic scores
         gemini_set_scores = gemini_intel.get("set_scores", {})
@@ -188,18 +193,18 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
             for k, val in gemini_detailed.items():
                 if isinstance(val, dict):
                     base_set = detailed_sets.get(k, {})
-                    # For Set 1: Ensure real CA issuer, subject, protocol, cipher are never empty
+                    # For Set 1: Ensure real CA issuer, subject, protocol, cipher from actual telemetry
                     if k == "set1":
                         if not val.get("issuer") or "telemetry" in str(val.get("issuer", "")).lower():
-                            val["issuer"] = base_set.get("issuer", "Trusted Certificate Authority")
+                            val["issuer"] = base_set.get("issuer", "")
                         if not val.get("subject") or "telemetry" in str(val.get("subject", "")).lower():
                             val["subject"] = base_set.get("subject", f"*.{domain}")
                         if not val.get("protocol"):
-                            val["protocol"] = base_set.get("protocol", "TLS 1.2")
+                            val["protocol"] = base_set.get("protocol", "")
                         if not val.get("cipher"):
-                            val["cipher"] = base_set.get("cipher", "ECDHE-RSA-AES128-GCM-SHA256")
-                        if not val.get("days_until_expiry"):
-                            val["days_until_expiry"] = base_set.get("days_until_expiry", 90)
+                            val["cipher"] = base_set.get("cipher", "")
+                        if val.get("days_until_expiry") is None:
+                            val["days_until_expiry"] = base_set.get("days_until_expiry", 0)
                     # For Set 3: Ensure spf_record and dmarc_policy are preserved
                     elif k == "set3":
                         if not val.get("spf_record") or "telemetry" in str(val.get("spf_record", "")).lower():
@@ -210,8 +215,8 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
                     elif k == "set4":
                         if not val.get("virustotal_stats"):
                             val["virustotal_stats"] = base_set.get("virustotal_stats", "0 / 70 Vendors Flagged (Clean)")
-                        if not val.get("shodan_ports"):
-                            val["shodan_ports"] = base_set.get("shodan_ports", ["80", "443"])
+                        if "shodan_ports" not in val or not val.get("shodan_ports"):
+                            val["shodan_ports"] = base_set.get("shodan_ports", [])
                     # For Set 5: Ensure probed_paths array is preserved
                     elif k == "set5":
                         if not val.get("probed_paths"):

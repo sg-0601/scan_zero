@@ -33,12 +33,12 @@ interface RadarChartProps {
 export default function RadarChart({ mainTarget, scores, competitors = [] }: RadarChartProps) {
   // Build radar data dynamically from real scan scores
   const data: RadarData[] = [
-    { subject: 'Crypto & TLS', A: scores?.set1 ?? 80 },
-    { subject: 'HTTP Headers', A: scores?.set2 ?? 75 },
-    { subject: 'DNS & Spoof', A: scores?.set3 ?? 80 },
-    { subject: 'Attack Surface', A: scores?.set4 ?? 80 },
-    { subject: 'DAST Probes', A: scores?.set5 ?? 85 },
-    { subject: 'Deception', A: scores?.set6 ?? 90 },
+    { subject: 'Crypto & TLS', A: scores?.set1 ?? 0 },
+    { subject: 'HTTP Headers', A: scores?.set2 ?? 0 },
+    { subject: 'DNS & Spoof', A: scores?.set3 ?? 0 },
+    { subject: 'Attack Surface', A: scores?.set4 ?? 0 },
+    { subject: 'DAST Probes', A: scores?.set5 ?? 0 },
+    { subject: 'Deception', A: scores?.set6 ?? 0 },
   ];
 
   // Colors for competitors

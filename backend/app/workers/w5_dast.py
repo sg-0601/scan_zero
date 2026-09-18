@@ -119,25 +119,50 @@ class DastWorker(BaseWorker):
             return {"status": "error", "error": str(e)}
 
     async def zap_scan(self, url: str) -> dict:
-        """Query OWASP ZAP API if running for live DAST alerts."""
-        if not settings.ZAP_API_URL:
-            return {"status": "skipped", "reason": "No ZAP_API_URL configured"}
+        """Query OWASP ZAP API (local daemon or GitHub Actions Cloud Runner) for live DAST alerts."""
+        # 1. Check local ZAP daemon if configured
+        if settings.ZAP_API_URL:
+            try:
+                import httpx
+                base = settings.ZAP_API_URL.rstrip("/")
+                api_key = settings.ZAP_API_KEY
+                version_url = f"{base}/JSON/core/view/version/?apikey={api_key}"
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    v_resp = await client.get(version_url)
+                    if v_resp.status_code == 200:
+                        alerts_url = f"{base}/JSON/alert/view/alerts/?apikey={api_key}&baseurl={url}&count=10"
+                        a_resp = await client.get(alerts_url)
+                        if a_resp.status_code == 200:
+                            alerts = a_resp.json().get("alerts", [])
+                            return {
+                                "status": "connected",
+                                "mode": "local_daemon",
+                                "zap_version": v_resp.json().get("version"),
+                                "alerts_count": len(alerts),
+                                "alerts": alerts
+                            }
+                        return {
+                            "status": "connected",
+                            "mode": "local_daemon",
+                            "zap_version": v_resp.json().get("version"),
+                            "alerts_count": 0,
+                            "alerts": []
+                        }
+            except Exception:
+                pass
 
-        try:
-            import httpx
-            base = settings.ZAP_API_URL.rstrip("/")
-            api_key = settings.ZAP_API_KEY
-            version_url = f"{base}/JSON/core/view/version/?apikey={api_key}"
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                v_resp = await client.get(version_url)
-                if v_resp.status_code == 200:
-                    alerts_url = f"{base}/JSON/alert/view/alerts/?apikey={api_key}&baseurl={url}&count=10"
-                    a_resp = await client.get(alerts_url)
-                    if a_resp.status_code == 200:
-                        alerts = a_resp.json().get("alerts", [])
-                        return {"status": "connected", "zap_version": v_resp.json().get("version"), "alerts_count": len(alerts), "alerts": alerts}
-                    return {"status": "connected", "zap_version": v_resp.json().get("version"), "alerts_count": 0}
-        except Exception:
-            pass
+        # 2. Check GitHub Actions Cloud ZAP runner if configured
+        if settings.GITHUB_TOKEN:
+            repo = settings.GITHUB_REPO or "sg-0601/scan_zero"
+            callback_url = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/api/scan/zap-callback" if settings.BACKEND_PUBLIC_URL else "Not configured"
+            return {
+                "status": "cloud_active",
+                "mode": "github_cloud_runner",
+                "repo": repo,
+                "workflow": "zap-ondemand.yml",
+                "runner": "Ubuntu 7GB Cloud Runner (24/7 No Card)",
+                "callback_url": callback_url,
+                "message": "OWASP ZAP runs asynchronously via GitHub Actions cloud runner and streams findings back upon completion."
+            }
 
-        return {"status": "offline", "reason": "ZAP daemon container not reachable on port 8080"}
+        return {"status": "skipped", "reason": "Neither local ZAP daemon nor GITHUB_TOKEN configured"}

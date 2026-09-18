@@ -942,7 +942,7 @@ async function handleRequest(request) {
                           </span>
                         </div>
                         <p className="text-xs font-mono text-gray-800 truncate" title={setDetails.spf_record}>
-                          {setDetails.spf_record || "v=spf1 ~all"}
+                          {setDetails.spf_record || "No SPF record published"}
                         </p>
                         <div className="text-[10px] text-gray-400">Sender Policy Framework validation</div>
                       </div>
@@ -960,7 +960,7 @@ async function handleRequest(request) {
                           </span>
                         </div>
                         <p className="text-xs font-mono text-gray-800 truncate" title={setDetails.dmarc_record}>
-                          {setDetails.dmarc_record || "v=DMARC1; p=none;"}
+                          {setDetails.dmarc_record || "No DMARC record published"}
                         </p>
                         <div className="text-[10px] text-gray-400">Domain-based Message Authentication</div>
                       </div>
@@ -1035,7 +1035,7 @@ async function handleRequest(request) {
                           <Server className="w-3.5 h-3.5 text-teal-500" />
                         </div>
                         <p className="text-xs font-bold text-gray-800 truncate">
-                          {Array.isArray(setDetails.shodan_ports) ? setDetails.shodan_ports.join(", ") : (setDetails.shodan_ports || "Ports: 80, 443")}
+                          {Array.isArray(setDetails.shodan_ports) && setDetails.shodan_ports.length > 0 ? setDetails.shodan_ports.join(", ") : "No open ports detected"}
                         </p>
                         <div className="text-[10px] text-gray-400">Public listening services</div>
                       </div>
@@ -1082,23 +1082,25 @@ async function handleRequest(request) {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {(setDetails.probed_paths && setDetails.probed_paths.length > 0 ? setDetails.probed_paths : [
-                        { path: "/.env", status: "HTTP 404", verdict: "Blocked / Safe" },
-                        { path: "/.git", status: "HTTP 404", verdict: "Blocked / Safe" },
-                        { path: "/backup.zip", status: "HTTP 404", verdict: "Blocked / Safe" }
-                      ]).map((item, pIdx) => (
-                        <div key={pIdx} className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-                          <div>
-                            <div className="text-xs font-mono font-bold text-gray-900">{item.path}</div>
-                            <div className="text-[10px] font-mono text-gray-400">{item.status}</div>
+                    {setDetails.probed_paths && setDetails.probed_paths.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {setDetails.probed_paths.map((item, pIdx) => (
+                          <div key={pIdx} className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+                            <div>
+                              <div className="text-xs font-mono font-bold text-gray-900">{item.path}</div>
+                              <div className="text-[10px] font-mono text-gray-400">{item.status}</div>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
+                              {item.verdict || "BLOCKED"}
+                            </span>
                           </div>
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                            {item.verdict || "BLOCKED"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-500 font-mono text-center">
+                        Probed standard endpoints; all sensitive diagnostic paths restricted or blocked.
+                      </div>
+                    )}
                   </div>
                 )}
 

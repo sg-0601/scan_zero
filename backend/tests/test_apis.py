@@ -296,3 +296,113 @@ async def test_owasp_zap_status(api_keys):
             pytest.skip(f"ZAP daemon responded with HTTP {resp.status_code}")
     except Exception:
         pytest.skip("OWASP ZAP daemon container is offline (optional service)")
+
+
+@pytest.mark.asyncio
+async def test_github_cloud_zap_runner(api_keys):
+    """Verify GitHub Actions Cloud ZAP Runner authentication, repo, and workflow readiness."""
+    token = api_keys.get("github_token")
+    repo = api_keys.get("github_repo", "sg-0601/scan_zero")
+    backend_url = api_keys.get("backend_public_url", "")
+
+    if not token:
+        pytest.skip("GITHUB_TOKEN not configured in .env")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "ScanZero-TestRunner"
+    }
+
+    start = time.perf_counter()
+    async with httpx.AsyncClient(headers=headers, timeout=12.0) as client:
+        # 1. Check user authentication and token scopes
+        user_resp = await client.get("https://api.github.com/user")
+        assert user_resp.status_code == 200, f"GitHub authentication failed: HTTP {user_resp.status_code}"
+        user_data = user_resp.json()
+        login = user_data.get("login", "")
+        scopes = user_resp.headers.get("x-oauth-scopes", "")
+
+        # 2. Check repository access
+        repo_resp = await client.get(f"https://api.github.com/repos/{repo}")
+        assert repo_resp.status_code == 200, f"Repository {repo} lookup failed: HTTP {repo_resp.status_code}"
+        default_branch = repo_resp.json().get("default_branch", "main")
+
+        # 3. Check ZAP workflow exists and is active
+        wf_resp = await client.get(f"https://api.github.com/repos/{repo}/actions/workflows/zap-ondemand.yml")
+        assert wf_resp.status_code == 200, f"Workflow zap-ondemand.yml not found in {repo}: HTTP {wf_resp.status_code}"
+        wf_data = wf_resp.json()
+        assert wf_data.get("state") == "active", f"Workflow zap-ondemand.yml is not active: state={wf_data.get('state')}"
+
+    latency = (time.perf_counter() - start) * 1000
+    print(
+        f"\n[GitHub-ZAP] Cloud Runner Ready ({latency:.0f}ms) - User: {login}, "
+        f"Repo: {repo} ({default_branch}), Workflow: {wf_data.get('name')} (Active), "
+        f"Scopes: [{scopes}], Callback Target: {backend_url or 'Not set'}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_zap_callback_handler():
+    """Verify backend ZAP callback processing and dynamic score recalculation."""
+    from app.api.scan import zap_callback
+    from app.models.memory_store import MEMORY_SCANS
+
+    test_scan_id = "00000000-0000-0000-0000-000000000099"
+    MEMORY_SCANS[test_scan_id] = {
+        "id": test_scan_id,
+        "domain": "test-target.com",
+        "status": "running",
+        "results_json": {
+            "findings": [],
+            "raw_results": {
+                "w2_tls": {"raw_data": {"tls": {"status": "success", "version": "TLSv1.3", "days_until_expiry": 180}}},
+                "w3_headers": {"raw_data": {"active_headers": ["Content-Security-Policy"], "missing_headers": []}},
+                "w4_dns": {"raw_data": {"spf": {"found": True}, "dmarc": {"found": True, "policy": "reject"}, "dnssec": {"active": True}}},
+                "w1_osint": {"raw_data": {"subdomains": [], "virustotal": {"malicious": 0}}},
+                "w5_dast": {"raw_data": {"probed_paths": {"checked": {}}}},
+                "w6_honeypot": {"raw_data": {"is_honeypot": False}}
+            }
+        }
+    }
+
+    mock_zap_payload = {
+        "scan_id": test_scan_id,
+        "report": {
+            "site": [
+                {
+                    "@name": "https://test-target.com",
+                    "alerts": [
+                        {
+                            "alert": "Anti-CSRF Tokens Check",
+                            "risk": "Medium",
+                            "desc": "A form was found without an anti-CSRF token.",
+                            "solution": "Add CSRF protection token to form submissions.",
+                            "param": "session_id",
+                            "url": "https://test-target.com/login",
+                            "cweid": "352"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+    result = await zap_callback(mock_zap_payload)
+    assert result.get("status") == "success"
+    assert result.get("alerts_merged") == 1
+
+    stored_scan = MEMORY_SCANS[test_scan_id]
+    r_json = stored_scan.get("results_json", {})
+    findings = r_json.get("findings", [])
+    assert len(findings) == 1
+    assert "OWASP ZAP: Anti-CSRF Tokens Check" in findings[0].get("title")
+    assert findings[0].get("severity") == "medium"
+    assert findings[0].get("category") == "dast"
+    assert "remediation_code" in findings[0]
+    assert r_json.get("zap_completed") is True
+    print(f"\n[ZAP-Callback] Callback handler successfully merged dynamic finding and recalculated score: {stored_scan.get('score')} (Grade: {stored_scan.get('grade')})")
+
+    # Clean up test entry
+    MEMORY_SCANS.pop(test_scan_id, None)
+

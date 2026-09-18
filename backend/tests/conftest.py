@@ -38,4 +38,7 @@ def api_keys():
         'leakcheck': os.getenv('LEAKCHECK_API_KEY', ''),
         'zap_url': os.getenv('ZAP_API_URL', ''),
         'zap_key': os.getenv('ZAP_API_KEY', ''),
+        'github_token': os.getenv('GITHUB_TOKEN', ''),
+        'github_repo': os.getenv('GITHUB_REPO', 'sg-0601/scan_zero'),
+        'backend_public_url': os.getenv('BACKEND_PUBLIC_URL', ''),
     }

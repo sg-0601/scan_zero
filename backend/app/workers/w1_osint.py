@@ -431,6 +431,8 @@ class OsintWorker(BaseWorker):
         """Search public GitHub repositories for potential leaked secrets mentioning domain."""
         try:
             headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "ScanZero-CodeAudit"}
+            if settings.GITHUB_TOKEN:
+                headers["Authorization"] = f"Bearer {settings.GITHUB_TOKEN}"
             async with httpx.AsyncClient(headers=headers, timeout=5.0) as client:
                 query = f'"{domain}" AND (password OR secret_key OR API_KEY)'
                 resp = await client.get(f"https://api.github.com/search/code?q={query}")

@@ -335,8 +335,8 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
             "metricValue": f"{tls_info.get('version', 'TLS Active')} ({days}d left)",
             "issuer": issuer_org,
             "subject": subject_cn,
-            "protocol": tls_info.get("version", "TLSv1.2"),
-            "cipher": tls_info.get("cipher", "ECDHE-RSA-AES128-GCM-SHA256"),
+            "protocol": tls_info.get("version") or "Not Negotiated",
+            "cipher": tls_info.get("cipher") or "None",
             "days_until_expiry": days,
             "trust_chain_status": "CHAIN VERIFIED" if days > 0 else "EXPIRED"
         },
@@ -389,7 +389,7 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
             "recommendation": "Ensure development subdomains are isolated, restrict database ports, and monitor employee credentials for dark web leaks.",
             "metricValue": f"{len(subs)} Subdomains &bull; {breach_info.get('breach_count', 0)} Breaches",
             "virustotal_stats": f"{vt_info.get('malicious', 0)} / 70 Vendors Flagged (Clean)" if vt_info.get("malicious", 0) == 0 else f"{vt_info.get('malicious')} / 70 Vendors Flagged Malicious",
-            "shodan_ports": [str(p) for p in shodan_info.get("ports", [])] or ["80", "443"],
+            "shodan_ports": [str(p) for p in shodan_info.get("ports", [])],
             "breach_intel": f"{breach_info.get('breach_count', 0)} Compromised Credentials",
             "subdomain_count": len(subs)
         },
@@ -404,11 +404,7 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
             "evidence": f"Probes: {dast_evidence}",
             "recommendation": "Implement WAF rules to block automatic vulnerability scanners and path traversal probes.",
             "metricValue": f"{len(dast_findings)} Leaks Found" if dast_findings else "Clean Surface",
-            "probed_paths": [{"path": p, "status": f"HTTP {code}", "verdict": "Blocked / Safe" if code in [404, 403, 401] else "Review"} for p, code in checked_paths.items()] or [
-                {"path": "/.env", "status": "HTTP 404", "verdict": "Blocked / Safe"},
-                {"path": "/.git", "status": "HTTP 404", "verdict": "Blocked / Safe"},
-                {"path": "/backup.zip", "status": "HTTP 404", "verdict": "Blocked / Safe"}
-            ],
+            "probed_paths": [{"path": p, "status": f"HTTP {code}", "verdict": "Blocked / Safe" if code in [404, 403, 401] else "Review"} for p, code in checked_paths.items()],
             "dast_verdict": f"{len(dast_findings)} Leaks Found" if dast_findings else "Clean Surface (0 Leaks)"
         },
         "set6": {

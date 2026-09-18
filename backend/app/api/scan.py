@@ -203,7 +203,7 @@ async def ask_scan_gemini(scan_id: str, req: AskGeminiRequest):
 async def zap_callback(payload: dict):
     """
     Webhook callback endpoint invoked by GitHub Actions ZAP runner upon completion.
-    Asynchronously merges cloud-scanned DAST alerts into the live scan record.
+    Asynchronously merges cloud-scanned DAST alerts into the live scan record and recalculates score.
     """
     scan_id = payload.get("scan_id")
     if not scan_id:
@@ -212,28 +212,46 @@ async def zap_callback(payload: dict):
     report = payload.get("report", {})
     zap_findings = []
 
-    # Parse ZAP JSON site alerts
+    # Parse ZAP JSON site alerts (support both list and single dict)
     sites = report.get("site", [])
-    if isinstance(sites, list):
-        for s in sites:
-            for a in s.get("alerts", []):
-                risk_str = a.get("riskdesc", a.get("risk", "Low"))
-                severity = risk_str.split()[0].lower() if risk_str else "low"
-                if severity not in ["critical", "high", "medium", "low", "info"]:
-                    severity = "low"
-                zap_findings.append({
-                    "title": f"OWASP ZAP: {a.get('name') or a.get('alert', 'Security Finding')}",
-                    "description": (a.get("desc") or a.get("description", "Identified by OWASP ZAP cloud analysis."))[:250],
-                    "severity": severity,
-                    "category": "dast",
-                    "solution": (a.get("solution") or "")[:250],
-                    "evidence": {
-                        "param": a.get("param", ""),
-                        "url": a.get("url", ""),
-                        "cweid": a.get("cweid", ""),
-                        "instances": len(a.get("instances", []))
-                    }
-                })
+    if isinstance(sites, dict):
+        sites = [sites]
+    elif not isinstance(sites, list):
+        sites = []
+
+    raw_alerts = []
+    for s in sites:
+        if isinstance(s, dict):
+            alerts = s.get("alerts", [])
+            if isinstance(alerts, list):
+                raw_alerts.extend(alerts)
+
+    # Also support top-level alerts if reported directly
+    if isinstance(report.get("alerts"), list):
+        raw_alerts.extend(report.get("alerts"))
+
+    for a in raw_alerts:
+        risk_str = a.get("riskdesc", a.get("risk", "Low"))
+        severity = risk_str.split()[0].lower() if risk_str else "low"
+        if severity not in ["critical", "high", "medium", "low", "info"]:
+            severity = "low"
+        zap_findings.append({
+            "title": f"OWASP ZAP: {a.get('name') or a.get('alert', 'Security Finding')}",
+            "description": (a.get("desc") or a.get("description", "Identified by OWASP ZAP cloud analysis."))[:250],
+            "severity": severity,
+            "category": "dast",
+            "solution": (a.get("solution") or "")[:250],
+            "evidence": {
+                "param": a.get("param", ""),
+                "url": a.get("url", ""),
+                "cweid": a.get("cweid", ""),
+                "instances": len(a.get("instances", [])) if isinstance(a.get("instances"), list) else 0
+            }
+        })
+
+    # Recalculate dynamic scores if findings were added
+    from app.engine.scoring import calculate_score, assign_grade, calculate_category_scores
+    from app.engine.remediation import generate_fixes
 
     # Update in-memory scan store
     if scan_id in MEMORY_SCANS:
@@ -242,8 +260,24 @@ async def zap_callback(payload: dict):
         if isinstance(r_json, dict):
             findings = r_json.setdefault("findings", [])
             findings.extend(zap_findings)
+            remediated_findings = generate_fixes(findings)
+            r_json["findings"] = remediated_findings
+            
+            # Recalculate dynamic set scores and total score
+            worker_raw = r_json.get("raw_results", {})
+            worker_raw.setdefault("w5_dast", {}).setdefault("raw_data", {})["zap_cloud_alerts"] = zap_findings
+            new_set_scores = calculate_category_scores(remediated_findings, worker_raw)
+            new_score = calculate_score(remediated_findings, worker_raw, new_set_scores)
+            new_grade = assign_grade(new_score)
+
+            r_json["set_scores"] = new_set_scores
+            r_json["score"] = new_score
+            r_json["grade"] = new_grade
             r_json["zap_completed"] = True
             r_json["zap_alerts_count"] = len(zap_findings)
+
+            scan_mem["score"] = new_score
+            scan_mem["grade"] = new_grade
             scan_mem["results_json"] = r_json
 
     # Update Database if available
@@ -257,9 +291,29 @@ async def zap_callback(payload: dict):
                 db_results = dict(scan.results_json)
                 db_findings = db_results.setdefault("findings", [])
                 db_findings.extend(zap_findings)
+                remediated_db_findings = generate_fixes(db_findings)
+                db_results["findings"] = remediated_db_findings
+                
+                worker_raw = db_results.get("raw_results", {})
+                new_set_scores = calculate_category_scores(remediated_db_findings, worker_raw)
+                new_score = calculate_score(remediated_db_findings, worker_raw, new_set_scores)
+                new_grade = assign_grade(new_score)
+
+                db_results["set_scores"] = new_set_scores
+                db_results["score"] = new_score
+                db_results["grade"] = new_grade
                 db_results["zap_completed"] = True
                 db_results["zap_alerts_count"] = len(zap_findings)
+
+                scan.score = new_score
+                scan.grade = new_grade
                 scan.results_json = db_results
+                scan.findings_count = len(remediated_db_findings)
+                scan.critical_count = len([f for f in remediated_db_findings if f.get("severity") == "critical"])
+                scan.high_count = len([f for f in remediated_db_findings if f.get("severity") == "high"])
+                scan.medium_count = len([f for f in remediated_db_findings if f.get("severity") == "medium"])
+                scan.low_count = len([f for f in remediated_db_findings if f.get("severity") == "low"])
+
                 await session.commit()
     except Exception as e:
         logger.warning(f"ZAP callback DB update skipped: {e}")

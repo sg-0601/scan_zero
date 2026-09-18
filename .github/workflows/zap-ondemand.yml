@@ -29,7 +29,7 @@ jobs:
           target: ${{ github.event.inputs.target_url }}
           issue_title: 'ZAP Audit: ${{ github.event.inputs.target_url }}'
           fail_action: false
-          cmd_options: '-J zap_report.json'
+          cmd_options: '-J zap_report.json -r zap_report.html'
 
       # Send Results Back to Render Backend via Callback
       - name: Send Results Back to Render Callback

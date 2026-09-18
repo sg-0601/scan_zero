@@ -26,6 +26,7 @@ async def check_apis_health(domain: str = "cloudflare.com"):
         "cisa_kev": _check_cisa_kev(),
         "first_epss": _check_epss(),
         "leakcheck": _check_leakcheck(domain),
+        "github_cloud_zap": _check_github_cloud_zap(),
     }
 
     results = {}
@@ -192,6 +193,35 @@ async def _check_leakcheck(domain: str) -> dict:
         latency = int((time.perf_counter() - start) * 1000)
         if resp.status_code in (200, 403):
             return {"status": "operational", "latency_ms": latency, "note": "Key authenticated"}
+        return {"status": "error", "latency_ms": latency, "http_code": resp.status_code}
+    except Exception as e:
+        return {"status": "unreachable", "error": str(e)}
+
+
+async def _check_github_cloud_zap() -> dict:
+    if not settings.GITHUB_TOKEN:
+        return {"status": "skipped", "message": "GITHUB_TOKEN not configured"}
+    start = time.perf_counter()
+    try:
+        repo = settings.GITHUB_REPO or "sg-0601/scan_zero"
+        headers = {
+            "Authorization": f"Bearer {settings.GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "ScanZero-HealthCheck"
+        }
+        async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
+            resp = await client.get(f"https://api.github.com/repos/{repo}/actions/workflows/zap-ondemand.yml")
+        latency = int((time.perf_counter() - start) * 1000)
+        if resp.status_code == 200:
+            wf = resp.json()
+            return {
+                "status": "operational",
+                "latency_ms": latency,
+                "workflow": wf.get("name", "On-Demand ZAP Scanner"),
+                "state": wf.get("state", "active"),
+                "runner": "Ubuntu 7GB Cloud Runner",
+                "repo": repo
+            }
         return {"status": "error", "latency_ms": latency, "http_code": resp.status_code}
     except Exception as e:
         return {"status": "unreachable", "error": str(e)}
