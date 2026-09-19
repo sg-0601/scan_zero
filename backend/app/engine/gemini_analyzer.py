@@ -281,7 +281,7 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
 
     return {
         "ai_powered": False,
-        "gemini_model_used": "deterministic-fallback",
+        "gemini_model_used": "AI Security Core",
         "executive_summary": (
             f"Automated multi-tool scan across 6 security dimensions completed for {domain}. "
             f"Evaluated transport layer encryption, HTTP security headers, DNS anti-spoofing policies, "
@@ -413,7 +413,7 @@ async def synthesize_scan_intelligence(domain: str, url: str, worker_results: Di
     telemetry = prepare_telemetry_digest(domain, url, worker_results, raw_findings)
     
     prompt = f"""
-You are Google Gemini, acting as the Senior Principal Cyber Security Architect & Chief Penetration Tester for ScanZero.
+You are the Senior Principal Cyber Security Architect & Chief Penetration Tester (AI Core) for ScanZero.
 You have been provided with comprehensive multi-tool intelligence and raw telemetry collected across 6 parallel inspection workers for the target domain: '{domain}' (URL: '{url}').
 
 The tools executed include:
@@ -911,7 +911,7 @@ IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or 
         parsed_json["cross_set_visual_matrix"] = fb_intel.get("cross_set_visual_matrix")
 
     parsed_json["ai_powered"] = True
-    parsed_json["gemini_model_used"] = getattr(settings, "GEMINI_PRIMARY_MODEL", "gemini-flash-lite-latest")
+    parsed_json["gemini_model_used"] = "AI Security Core"
     parsed_json["analyzed_at"] = datetime.utcnow().isoformat()
     return parsed_json
 

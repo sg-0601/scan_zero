@@ -167,8 +167,8 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     if scan_id in MEMORY_SCANS:
         MEMORY_SCANS[scan_id].update({
             "progress": 75,
-            "stage": "AI Multi-Tool Intelligence Core (Gemini) Synthesizing Findings...",
-            "current_worker": "Gemini AI Synthesis Core"
+            "stage": "AI Multi-Tool Intelligence Core Synthesizing Findings...",
+            "current_worker": "AI Synthesis Core"
         })
     logger.info(f"Passing multi-tool telemetry for {domain} into Google Gemini Intelligence Engine...")
     try:

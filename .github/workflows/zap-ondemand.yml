@@ -19,8 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Run ZAP Scan in Cloud
     permissions:
-      contents: read
-      actions: read
+      contents: write
+      actions: write
+      issues: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -33,16 +34,18 @@ jobs:
       # ZAP Baseline Scan in 7GB Cloud Runner
       - name: ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.14.0
+        continue-on-error: true
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ github.event.inputs.target_url }}
           allow_issue_writing: false
           fail_action: false
-          cmd_options: '-J zap_report.json -r zap_report.html -m 3'
+          cmd_options: '-J zap_report.json -r zap_report.html -m 2 -I'
 
       # Send Results Back to Render Backend via Callback
       - name: Send Results Back to Render Callback
         if: always()
+        continue-on-error: true
         env:
           CALLBACK_URL: ${{ github.event.inputs.callback_url }}
           SCAN_ID: ${{ github.event.inputs.scan_id }}
@@ -72,6 +75,21 @@ jobs:
                       except Exception as err:
                           print(f"Error reading {candidate}: {err}")
 
+              if not report:
+                  for root, dirs, files in os.walk(os.getcwd()):
+                      for fname in files:
+                          if fname.endswith(".json") and "zap" in fname.lower():
+                              p = os.path.join(root, fname)
+                              try:
+                                  with open(p, "r", encoding="utf-8") as f:
+                                      report = json.load(f)
+                                      print(f"Discovered ZAP report via walk: {p}")
+                                      break
+                              except Exception:
+                                  pass
+                      if report:
+                          break
+
               payload = json.dumps({"scan_id": scan_id, "report": report}).encode("utf-8")
               req = urllib.request.Request(
                   callback,
@@ -91,9 +109,10 @@ jobs:
       - name: Upload Scan Artifacts
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: zap-report-${{ github.event.inputs.scan_id }}
           path: |
-            zap_report.html
-            zap_report.json
+            **/zap_report.html
+            **/zap_report.json
           retention-days: 7

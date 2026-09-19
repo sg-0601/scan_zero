@@ -102,7 +102,7 @@ export default function Home() {
 
       setScanProgress(100);
       setScanStage("Security synthesis complete!");
-      setScanWorker("All 6 Workers & Gemini Finished");
+      setScanWorker("All 6 Workers & AI Finished");
       setScanResults(results);
       setViewState("dashboard");
     } catch (err: any) {
@@ -701,7 +701,7 @@ export default function Home() {
               {scanStage}
             </h3>
             <p className="text-sm text-gray-500 mt-1.5">
-              Evaluating across <span className="font-semibold text-teal-600">55 tools</span> in <span className="font-semibold text-teal-600">6 dimensions</span> via <span className="font-semibold text-purple-600">Gemini 2.5 Pro</span>
+              Evaluating across <span className="font-semibold text-teal-600">55 tools</span> in <span className="font-semibold text-teal-600">6 dimensions</span> via <span className="font-semibold text-purple-600">AI Intelligence Core</span>
             </p>
           </div>
 

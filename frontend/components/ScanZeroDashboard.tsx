@@ -1591,7 +1591,7 @@ async function handleRequest(request) {
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-purple-600" />
-                        Gemini AI Mathematical Synthesis
+                        AI Mathematical Synthesis
                       </span>
                       <span className="text-[10px] font-mono text-gray-400">
                         55 Tools &bull; 6 Sets Correlated

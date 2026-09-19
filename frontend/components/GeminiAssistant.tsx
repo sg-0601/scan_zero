@@ -117,7 +117,7 @@ export default function GeminiAssistant({ scanId, domain, score, grade }: Gemini
                 Ask AI &bull; Security Assistant
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
-                gemini-3.8-flash
+                AI Assistant
               </span>
             </div>
             <p className="text-gray-400 text-xs mt-0.5">
