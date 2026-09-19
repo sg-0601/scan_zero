@@ -33,7 +33,12 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     """Run all workers in parallel and aggregate results."""
     # Mark running in memory store
     if scan_id in MEMORY_SCANS:
-        MEMORY_SCANS[scan_id]["status"] = "running"
+        MEMORY_SCANS[scan_id].update({
+            "status": "running",
+            "progress": 25,
+            "stage": "Executing 6 Parallel Worker Engines & Cloud ZAP...",
+            "current_worker": "Workers 1-6 (OSINT, TLS, Headers, DNS, DAST, Canary)"
+        })
 
     # 1. Initialize Workers
     workers = [
@@ -76,6 +81,13 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
             })
     except Exception as e:
         logger.debug(f"WAF detection skipped: {e}")
+
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "progress": 55,
+            "stage": "Aggregating 55-Tool Telemetry & EPSS/CISA Correlation...",
+            "current_worker": "Threat Correlation Engine"
+        })
 
     # --- Unreachable Domain Detection ---
     # Check if the key connectivity workers all failed or errored
@@ -152,6 +164,12 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     scoring_breakdown = generate_scoring_breakdown(domain, remediated_findings, set_scores)
 
     # 9. Google Gemini Multi-Tool Intelligence Synthesis Engine
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "progress": 75,
+            "stage": "AI Multi-Tool Intelligence Core (Gemini) Synthesizing Findings...",
+            "current_worker": "Gemini AI Synthesis Core"
+        })
     logger.info(f"Passing multi-tool telemetry for {domain} into Google Gemini Intelligence Engine...")
     try:
         gemini_intel = await synthesize_scan_intelligence(domain, url, worker_results_dict, remediated_findings)
@@ -159,6 +177,13 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         logger.error(f"Gemini intelligence synthesis encountered exception: {e}", exc_info=True)
         from app.engine.gemini_analyzer import generate_fallback_intelligence
         gemini_intel = generate_fallback_intelligence(domain, url, worker_results_dict, remediated_findings)
+
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "progress": 92,
+            "stage": "Assembling Mathematical Visual Matrix & Remediation Guides...",
+            "current_worker": "AI Posture Matrix Generator"
+        })
 
     # Initialize baseline summary items
     status_text = (
@@ -310,6 +335,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         "attack_chain": gemini_intel.get("attack_chain") if gemini_intel else [],
         "remediation_roadmap": gemini_intel.get("remediation_roadmap") if gemini_intel else {},
         "multi_site_comparison_insight": gemini_intel.get("multi_site_comparison_insight") if gemini_intel else None,
+        "cross_set_visual_matrix": gemini_intel.get("cross_set_visual_matrix") if gemini_intel else None,
         "completed_at": datetime.utcnow().isoformat()
     }
 
@@ -317,6 +343,9 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     if scan_id in MEMORY_SCANS:
         MEMORY_SCANS[scan_id].update({
             "status": "completed",
+            "progress": 100,
+            "stage": "Audit & AI Synthesis Completed Successfully",
+            "current_worker": "Scan Complete",
             "score": score,
             "grade": grade,
             "results_json": final_result_data,

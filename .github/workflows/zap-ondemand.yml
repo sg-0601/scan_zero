@@ -18,18 +18,27 @@ jobs:
   zap_scan:
     runs-on: ubuntu-latest
     name: Run ZAP Scan in Cloud
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Prepare Workspace Permissions
+        run: |
+          mkdir -p ${{ github.workspace }}/wrk
+          chmod -R 777 ${{ github.workspace }}
 
       # ZAP Baseline Scan in 7GB Cloud Runner
       - name: ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.14.0
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ github.event.inputs.target_url }}
-          issue_title: 'ZAP Audit: ${{ github.event.inputs.target_url }}'
+          allow_issue_writing: false
           fail_action: false
-          cmd_options: '-J zap_report.json -r zap_report.html'
+          cmd_options: '-J zap_report.json -r zap_report.html -m 3'
 
       # Send Results Back to Render Backend via Callback
       - name: Send Results Back to Render Callback
@@ -47,12 +56,21 @@ jobs:
           if callback and callback != "null":
               print(f"Posting scan results for {scan_id} to {callback}...")
               report = {}
-              if os.path.exists("zap_report.json"):
-                  try:
-                      with open("zap_report.json", "r", encoding="utf-8") as f:
-                          report = json.load(f)
-                  except Exception as err:
-                      print(f"Failed to read zap_report.json: {err}")
+              candidates = [
+                  "zap_report.json",
+                  "wrk/zap_report.json",
+                  os.path.join(os.getcwd(), "zap_report.json"),
+                  os.path.join(os.getcwd(), "wrk", "zap_report.json")
+              ]
+              for candidate in candidates:
+                  if os.path.exists(candidate):
+                      try:
+                          with open(candidate, "r", encoding="utf-8") as f:
+                              report = json.load(f)
+                              print(f"Successfully loaded report from {candidate}")
+                              break
+                      except Exception as err:
+                          print(f"Error reading {candidate}: {err}")
 
               payload = json.dumps({"scan_id": scan_id, "report": report}).encode("utf-8")
               req = urllib.request.Request(
@@ -61,19 +79,21 @@ jobs:
                   headers={"Content-Type": "application/json", "User-Agent": "ScanZero-GitHub-Runner"}
               )
               try:
-                  with urllib.request.urlopen(req, timeout=20) as res:
+                  with urllib.request.urlopen(req, timeout=25) as res:
                       print(f"Callback successful. HTTP status: {res.status}")
               except Exception as e:
-                  print(f"Callback failed (Backend might be asleep or unreachable): {e}")
+                  print(f"Callback response / notification: {e}")
           else:
               print("No valid callback URL provided. Skipping callback.")
           '
 
-      # Save HTML report as Artifact for manual review
-      - name: Upload HTML Report
+      # Save HTML and JSON reports as Artifact for manual review
+      - name: Upload Scan Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: zap-report-${{ github.event.inputs.scan_id }}
-          path: zap_report.html
+          path: |
+            zap_report.html
+            zap_report.json
           retention-days: 7

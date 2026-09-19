@@ -67,6 +67,9 @@ async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
         "target_url": url,
         "domain": domain,
         "status": "pending",
+        "progress": 15,
+        "stage": "Initializing 6 Parallel Inspection Workers...",
+        "current_worker": "ScanZero Core",
         "score": None,
         "grade": None,
         "results_json": None,
@@ -121,11 +124,19 @@ async def get_scan(scan_id: str):
         scan_data = {
             "id": mem["id"],
             "status": mem["status"],
+            "progress": mem.get("progress", 100 if mem["status"] == "completed" else 25),
+            "stage": mem.get("stage", "Security audit in progress..."),
+            "current_worker": mem.get("current_worker", "Multi-Tool Scanner"),
             "domain": mem["domain"],
             "score": mem.get("score"),
             "grade": mem.get("grade"),
             "results_json": mem.get("results_json"),
         }
+    elif scan_data and scan_id in MEMORY_SCANS:
+        mem = MEMORY_SCANS[scan_id]
+        scan_data["progress"] = mem.get("progress", 100 if scan_data.get("status") == "completed" else 50)
+        scan_data["stage"] = mem.get("stage", "Processing scan results...")
+        scan_data["current_worker"] = mem.get("current_worker", "Analysis Engine")
 
     if not scan_data:
         raise HTTPException(status_code=404, detail="Scan not found")
@@ -145,16 +156,21 @@ async def get_scan_status(scan_id: str):
     except Exception:
         pass
 
-    if not status and scan_id in MEMORY_SCANS:
-        status = MEMORY_SCANS[scan_id].get("status")
+    mem = MEMORY_SCANS.get(scan_id, {})
+    if not status:
+        status = mem.get("status")
         
     if not status:
         raise HTTPException(status_code=404, detail="Scan not found")
         
-    progress = 100 if status == "completed" else 50 if status == "running" else 0
+    progress = mem.get("progress", 100 if status == "completed" else 50 if status == "running" else 15)
+    stage = mem.get("stage", "Processing scan telemetry..." if status == "running" else "Audit Completed")
+    current_worker = mem.get("current_worker", "Security Scanner")
     return {
         "status": status,
-        "progress": progress
+        "progress": progress,
+        "stage": stage,
+        "current_worker": current_worker
     }
 
 active_connections: Dict[str, WebSocket] = {}
