@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     GEMINI_PRIMARY_MODEL: str = "gemini-flash-lite-latest"
     GEMINI_FALLBACK_MODELS: str = "gemini-3.1-flash-lite,gemini-3.5-flash-lite"
     SECRET_KEY: str = "supersecretkey"
+    CACHE_TTL_HOURS: int = 24
 
     # World-Class Free Alternative Threat Intel API Keys
     VIRUSTOTAL_API_KEY: str = ""   # Alternative to Censys (Free: virustotal.com)

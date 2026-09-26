@@ -3,6 +3,8 @@ from redis import asyncio as aioredis
 from app.config import settings
 import logging
 
+import time
+
 logger = logging.getLogger(__name__)
 
 # In-memory cache fallback for cloud deployments without standalone Redis
@@ -23,18 +25,32 @@ async def get_cached_scan(domain: str) -> dict | None:
     except Exception:
         pass
 
-    # 2. Fallback to in-memory cache
-    return IN_MEMORY_CACHE.get(domain)
+    # 2. Fallback to in-memory cache (with TTL expiration check)
+    entry = IN_MEMORY_CACHE.get(domain)
+    if entry:
+        if isinstance(entry, dict) and "expires_at" in entry and "data" in entry:
+            if time.time() < entry["expires_at"]:
+                return entry["data"]
+            else:
+                IN_MEMORY_CACHE.pop(domain, None)
+        else:
+            return entry
+    return None
 
 async def set_cached_scan(domain: str, result: dict) -> None:
     """Store scan result with TTL."""
-    # Always save to in-memory cache
-    IN_MEMORY_CACHE[domain] = result
+    ttl_hours = getattr(settings, "CACHE_TTL_HOURS", 24)
+    ttl_seconds = ttl_hours * 3600
+
+    # Always save to in-memory cache with expiration timestamp
+    IN_MEMORY_CACHE[domain] = {
+        "data": result,
+        "expires_at": time.time() + ttl_seconds
+    }
 
     # Also persist to Redis if reachable
     try:
         redis = await get_redis()
-        ttl_seconds = settings.CACHE_TTL_HOURS * 3600
         await redis.setex(f"scan:{domain}", ttl_seconds, json.dumps(result))
         await redis.aclose()
     except Exception:
