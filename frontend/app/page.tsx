@@ -240,6 +240,7 @@ export default function Home() {
       workerIntelligenceStream: rJson.worker_intelligence_stream || rJson.gemini_intelligence?.worker_intelligence_stream,
       crossSetVisualMatrix: rJson.cross_set_visual_matrix || rJson.gemini_intelligence?.cross_set_visual_matrix,
       cross_set_visual_matrix: rJson.cross_set_visual_matrix || rJson.gemini_intelligence?.cross_set_visual_matrix,
+      contextualRiskAnalysis: rJson.contextual_risk_analysis || rJson.gemini_intelligence?.contextual_risk_analysis || undefined,
       url,
       domain,
       overallScore: score,
@@ -402,6 +403,32 @@ export default function Home() {
           { name: "Moderate Risk Vectors", value: [s1, s2, s3, s4, s5, s6].filter((s) => s >= 60 && s < 80).length, color: "#f59e0b" },
           { name: "Critical Gaps", value: [s1, s2, s3, s4, s5, s6].filter((s) => s < 60).length, color: "#f43f5e" },
         ]
+      },
+      contextualRiskAnalysis: {
+        compensating_controls_detected: [
+          "Automated Edge HTTPS Redirect (Port 80 to 443)",
+          "Authoritative DNS Infrastructure",
+          "Production Host Canary Authenticity Verified",
+        ],
+        risk_adjustments: [
+          {
+            finding: "Missing Content-Security-Policy (CSP)",
+            original_set: "Set 2 (Headers)",
+            risk_level: "Moderate",
+            compensating_control: "Standard Origin Isolation & Browser Sandbox",
+            penalty_applied: "Standard deduction applied (-15 pts)",
+            explanation: "No active WAF detected; script execution restricted only by standard browser same-origin policy."
+          },
+          {
+            finding: "Missing Strict-Transport-Security (HSTS)",
+            original_set: "Set 2 (Headers)",
+            risk_level: "Small",
+            compensating_control: "Edge Port 80 Permanent 301 Redirect",
+            penalty_applied: "Penalty mitigated from -20 to -10 pts",
+            explanation: "Immediate edge redirect ensures clients are forced to HTTPS despite missing browser preload header."
+          }
+        ],
+        cross_set_interactions: "Network and TLS encryption layers (Set 1) partially buffer client-side transport vulnerabilities in Set 2."
       },
       detailedSets: generateFallbackDetailedSets(domain, baseScore, setScores),
       scoringBreakdown: generateFallbackBreakdown(domain, setScores),

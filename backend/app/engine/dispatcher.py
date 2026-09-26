@@ -336,6 +336,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         "remediation_roadmap": gemini_intel.get("remediation_roadmap") if gemini_intel else {},
         "multi_site_comparison_insight": gemini_intel.get("multi_site_comparison_insight") if gemini_intel else None,
         "cross_set_visual_matrix": gemini_intel.get("cross_set_visual_matrix") if gemini_intel else None,
+        "contextual_risk_analysis": gemini_intel.get("contextual_risk_analysis") if gemini_intel else None,
         "completed_at": datetime.utcnow().isoformat()
     }
 

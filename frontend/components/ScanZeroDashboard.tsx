@@ -85,6 +85,18 @@ export interface WebsiteResult {
   workerIntelligenceStream?: Record<string, any>;
   crossSetVisualMatrix?: Record<string, any>;
   cross_set_visual_matrix?: Record<string, any>;
+  contextualRiskAnalysis?: {
+    compensating_controls_detected?: string[];
+    risk_adjustments?: Array<{
+      finding: string;
+      original_set: string;
+      risk_level: string;
+      compensating_control: string;
+      penalty_applied: string;
+      explanation: string;
+    }>;
+    cross_set_interactions?: string;
+  };
   url: string;
   domain: string;
   overallScore: number;
@@ -1855,6 +1867,66 @@ async function handleRequest(request) {
                     Final Score: {currentSite.overallScore}/100
                   </div>
                 </div>
+
+                {/* AI Contextual Risk Analysis — Compensating Controls */}
+                {currentSite.contextualRiskAnalysis && currentSite.contextualRiskAnalysis.risk_adjustments && currentSite.contextualRiskAnalysis.risk_adjustments.length > 0 && (
+                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-5 mb-6 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-purple-600" />
+                      <h3 className="font-black text-gray-900 text-sm">AI Contextual Risk Analysis</h3>
+                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-300">COMPENSATING CONTROLS</span>
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      AI analyzed all vulnerabilities holistically across all 6 sets and detected compensating controls that adjust risk scores. Two sites with the same vulnerability will score differently if one has compensating defenses.
+                    </p>
+
+                    {/* Detected Compensating Controls */}
+                    {currentSite.contextualRiskAnalysis.compensating_controls_detected && currentSite.contextualRiskAnalysis.compensating_controls_detected.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {currentSite.contextualRiskAnalysis.compensating_controls_detected.map((ctrl: string, i: number) => (
+                          <span key={i} className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            ✓ {ctrl}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Cross-Set Interactions */}
+                    {currentSite.contextualRiskAnalysis.cross_set_interactions && (
+                      <div className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 p-3 rounded-xl">
+                        <strong>Cross-Set Interaction:</strong> {currentSite.contextualRiskAnalysis.cross_set_interactions}
+                      </div>
+                    )}
+
+                    {/* Risk Adjustments Table */}
+                    <div className="space-y-2">
+                      {currentSite.contextualRiskAnalysis.risk_adjustments.map((adj: any, i: number) => (
+                        <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900 text-xs">{adj.finding}</span>
+                              <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                                adj.risk_level === 'Big' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                adj.risk_level === 'Moderate' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                adj.risk_level === 'Small' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                adj.risk_level === 'Compensated' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-gray-50 text-gray-600 border-gray-200'
+                              }`}>{adj.risk_level}</span>
+                              <span className="text-[9px] font-mono text-gray-400">{adj.original_set}</span>
+                            </div>
+                            <p className="text-[11px] text-gray-500">{adj.explanation}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 min-w-[180px]">
+                            {adj.compensating_control !== 'None' && adj.compensating_control !== 'None — fully exposed' && (
+                              <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">🛡️ {adj.compensating_control}</span>
+                            )}
+                            <span className="text-[9px] font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">{adj.penalty_applied}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Point Attribution Table / Cards (Mozilla Observatory Modifier Style) */}
                 <div className="space-y-4">
