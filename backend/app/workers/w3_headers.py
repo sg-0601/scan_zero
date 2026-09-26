@@ -115,12 +115,13 @@ class HeadersWorker(BaseWorker):
 
                 # 7. Cookie security flags check
                 cookies = resp.headers.get_list("set-cookie") if hasattr(resp.headers, "get_list") else []
+                cookies_present = len(cookies) > 0
                 insecure_cookies = []
                 for c in cookies:
                     c_lower = c.lower()
                     if "secure" not in c_lower or "httponly" not in c_lower:
                         insecure_cookies.append(c.split(";")[0])
-                if insecure_cookies:
+                if cookies_present and insecure_cookies:
                     findings.append({
                         "title": "Insecure Cookie Flags (Missing Secure or HttpOnly)",
                         "description": f"Cookies {insecure_cookies[:2]} lack Secure or HttpOnly flags, exposing them to XSS or eavesdropping.",
@@ -129,11 +130,37 @@ class HeadersWorker(BaseWorker):
                         "evidence": {"insecure_cookies": insecure_cookies}
                     })
 
+                # 8. Server Banner & Technology Fingerprinting (OWASP Info Leakage)
+                server_banner = headers.get("server")
+                x_powered_by = headers.get("x-powered-by")
+
+                if server_banner and any(c.isdigit() for c in server_banner):
+                    findings.append({
+                        "title": f"Server Version Disclosed ({server_banner})",
+                        "description": f"Server header discloses software and exact version details ('{server_banner}'), assisting attackers with CVE targeting.",
+                        "severity": "low",
+                        "category": "headers",
+                        "evidence": {"server": server_banner}
+                    })
+
+                if x_powered_by:
+                    findings.append({
+                        "title": f"Application Framework Fingerprint Disclosed (X-Powered-By: {x_powered_by})",
+                        "description": f"The X-Powered-By header discloses backend runtime/framework ('{x_powered_by}').",
+                        "severity": "low",
+                        "category": "headers",
+                        "evidence": {"x_powered_by": x_powered_by}
+                    })
+
                 raw_data["active_headers"] = active_headers
                 raw_data["missing_headers"] = missing_headers
                 raw_data["active_count"] = len(active_headers)
                 raw_data["total_evaluated"] = len(active_headers) + len(missing_headers)
-                raw_data["server_header"] = headers.get("server", "Hidden / Not Disclosed")
+                raw_data["server_header"] = server_banner or "Hidden / Not Disclosed"
+                raw_data["server_banner"] = server_banner
+                raw_data["x_powered_by"] = x_powered_by
+                raw_data["cookies_present"] = cookies_present
+                raw_data["csp_has_frame_ancestors"] = "frame-ancestors" in (csp or "").lower()
 
         except Exception as e:
             raw_data["error"] = str(e)

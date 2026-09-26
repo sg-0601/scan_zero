@@ -213,6 +213,19 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
                 if k in gemini_set_scores:
                     set_scores[k] = int(gemini_set_scores[k])
 
+        # Critical Vulnerability Safety Net:
+        # If any critical vulnerability exists (.env, .git, active RCE, DB exposed), overall score cannot exceed 55 (Grade D/F)
+        has_critical = any(
+            f.get("severity") == "critical" or
+            any(t in f.get("title", "").lower() for t in [".env", ".git", "remote code execution", "rce", "database exposed"])
+            for f in remediated_findings
+        )
+        if has_critical:
+            score = min(55, score)
+            grade = assign_grade(score)
+            if "set5" in set_scores:
+                set_scores["set5"] = min(30, set_scores["set5"])
+
         # Adopt Gemini's full 6-set detailed analysis while ensuring verified cert/endpoint telemetry is preserved
         gemini_detailed = gemini_intel.get("detailed_sets", {})
         if isinstance(gemini_detailed, dict) and gemini_detailed:

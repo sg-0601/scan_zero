@@ -68,7 +68,27 @@ class DnsWorker(BaseWorker):
                 "evidence": {"dnssec": "No DS or DNSKEY records found"}
             })
 
+        # 5. CAA (Certificate Authority Authorization - RFC 8659) Check
+        caa_data = await loop.run_in_executor(None, self.check_caa, domain)
+        raw_data["caa"] = caa_data
+        if caa_data.get("found"):
+            findings.append({
+                "title": "Certificate Authority Authorization (CAA) Enforced",
+                "description": f"Domain restricts unauthorized certificate generation via published CAA policy: {', '.join(caa_data.get('records', [])[:2])}.",
+                "severity": "info",
+                "category": "dns",
+                "evidence": caa_data
+            })
+
         return {"findings": findings, "raw_data": raw_data}
+
+    def check_caa(self, domain: str) -> dict:
+        try:
+            answers = dns.resolver.resolve(domain, 'CAA')
+            records = [r.to_text().strip('"') for r in answers]
+            return {"found": len(records) > 0, "records": records}
+        except Exception:
+            return {"found": False, "records": []}
 
     def check_spf(self, domain: str) -> dict:
         try:

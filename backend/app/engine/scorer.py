@@ -36,23 +36,34 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     # -------------------------------------------------------------
     hdr_raw = worker_results.get("w3_headers", {}).get("raw_data", {})
     missing_headers = hdr_raw.get("missing_headers", [])
+    csp_has_fa = hdr_raw.get("csp_has_frame_ancestors") or ("frame-ancestors" in str(hdr_raw.get("headers", {}).get("content-security-policy", "")).lower())
     
     set2_score = 100.0
     if "Content-Security-Policy" in missing_headers:
         set2_score -= 25.0
     if "Strict-Transport-Security" in missing_headers:
         set2_score -= 25.0
-    if "X-Frame-Options" in missing_headers:
+    # W3C Standard: If CSP frame-ancestors is present, X-Frame-Options is obsolete; 0 penalty
+    if "X-Frame-Options" in missing_headers and not csp_has_fa:
         set2_score -= 15.0
     if "X-Content-Type-Options" in missing_headers:
         set2_score -= 10.0
     if "Referrer-Policy" in missing_headers:
         set2_score -= 5.0
         
-    for f in findings:
-        if f.get("category") == "headers" and "Insecure Cookie" in f.get("title", ""):
-            set2_score -= 10.0
-            break
+    # Only penalize cookies if website actually sets cookies
+    if hdr_raw.get("cookies_present", False):
+        for f in findings:
+            if f.get("category") == "headers" and "Insecure Cookie" in f.get("title", ""):
+                set2_score -= 10.0
+                break
+
+    # Information Leakage Penalties (OWASP Benchmark)
+    server_banner = hdr_raw.get("server_banner") or hdr_raw.get("server_header", "")
+    if server_banner and any(c.isdigit() for c in str(server_banner)):
+        set2_score -= 5.0
+    if hdr_raw.get("x_powered_by"):
+        set2_score -= 5.0
 
     # -------------------------------------------------------------
     # Set 3: DNS & Anti-Spoofing (Max 100)
@@ -61,6 +72,7 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     spf_data = dns_raw.get("spf", {})
     dmarc_data = dns_raw.get("dmarc", {})
     dnssec_data = dns_raw.get("dnssec", {})
+    caa_data = dns_raw.get("caa", {})
     
     set3_score = 100.0
     if not spf_data.get("found"):
@@ -78,6 +90,9 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     if not dnssec_data.get("active"):
         set3_score -= 10.0
 
+    if not caa_data.get("found"):
+        set3_score -= 3.0
+
     # -------------------------------------------------------------
     # Set 4: Attack Surface & OSINT (Max 100)
     # -------------------------------------------------------------
@@ -91,29 +106,38 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     emailrep_data = osint_raw.get("emailrep", {})
     
     set4_score = 100.0
-    if len(subdomains) > 50:
-        set4_score -= 15.0
-    elif len(subdomains) > 20:
-        set4_score -= 8.0
+
+    # Enterprise Subdomain Fairness: Only penalize exposed sensitive/dev subdomains
+    sensitive_prefixes = ("dev.", "staging.", "test.", "vpn.", "admin.", "internal.", "beta.", "corp.", "portal.", "uat.")
+    sensitive_subdomains = [s for s in subdomains if any(s.lower().startswith(p) or f".{p}" in s.lower() for p in sensitive_prefixes)]
+    if len(sensitive_subdomains) > 5:
+        set4_score -= 12.0
+    elif len(sensitive_subdomains) > 0:
+        set4_score -= 5.0
+    elif len(subdomains) > 100:
+        set4_score -= 3.0
 
     if shodan_data.get("vulns"):
         set4_score -= 35.0
     if any(p in [3306, 5432, 27017, 6379, 22, 1433, 9200] for p in shodan_data.get("ports", [])):
         set4_score -= 25.0
 
-    # VirusTotal threat detection deduction
+    # VirusTotal multi-vendor consensus threshold (avoids 1-vendor false positive)
     vt_malicious = vt_data.get("malicious", 0)
-    if vt_malicious > 2:
+    if vt_malicious >= 3:
         set4_score -= 40.0
-    elif vt_malicious > 0:
-        set4_score -= 20.0
+    elif vt_malicious == 2:
+        set4_score -= 15.0
+    elif vt_malicious == 1:
+        set4_score -= 5.0
 
-    # Dark Web / Credential breach deduction
+    # Dark Web / Credential breach deduction with aging discount
     total_breaches = breach_data.get("breach_count", 0) + leakcheck_data.get("breach_count", 0)
+    is_historical = breach_data.get("historical_only", False)
     if total_breaches > 10:
-        set4_score -= 25.0
+        set4_score -= 15.0 if is_historical else 25.0
     elif total_breaches > 0:
-        set4_score -= 12.0
+        set4_score -= 6.0 if is_historical else 12.0
 
     # URLScan malicious verdict deduction
     if urlscan_data.get("malicious"):
@@ -130,8 +154,13 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     # -------------------------------------------------------------
     dast_raw = worker_results.get("w5_dast", {}).get("raw_data", {})
     set5_score = 100.0
+    seen_dast_types = set()
     for f in findings:
         if f.get("category") == "dast":
+            f_key = f.get("title", "").strip().lower()
+            if f_key in seen_dast_types:
+                continue
+            seen_dast_types.add(f_key)
             if f.get("severity") == "critical":
                 set5_score -= 40.0
             elif f.get("severity") == "high":
@@ -143,10 +172,14 @@ def calculate_category_scores(findings: list, worker_results: dict) -> dict:
     # Set 6: Deception Posture & Canary (Max 100)
     # -------------------------------------------------------------
     honey_raw = worker_results.get("w6_honeypot", {}).get("raw_data", {})
+    canary_data = honey_raw.get("canary", {})
+    is_honeypot = honey_raw.get("is_honeypot", False)
+    is_spa = canary_data.get("is_spa_routing", False)
+
     set6_score = 100.0
-    if honey_raw.get("is_honeypot"):
+    if is_honeypot and not is_spa:
         set6_score -= 50.0
-    elif honey_raw.get("canary", {}).get("all_200"):
+    elif canary_data.get("all_200") and not is_spa:
         set6_score -= 30.0
 
     return {
@@ -171,6 +204,18 @@ def calculate_score(findings: list, worker_results: dict, set_scores: dict = Non
         set_scores["set5"] * 0.05 +
         set_scores["set6"] * 0.05
     )
+
+    # Critical Vulnerability Safety Net:
+    # If any critical finding exists (e.g. exposed .env, .git, active RCE, DB passwords),
+    # overall score is capped at max 55.0 (Grade D/F) regardless of other set scores.
+    has_critical = any(
+        f.get("severity") == "critical" or
+        any(term in f.get("title", "").lower() for term in [".env", ".git", "remote code execution", "rce", "database exposed"])
+        for f in findings
+    )
+    if has_critical:
+        weighted = min(55.0, weighted)
+
     return round(max(5.0, min(100.0, weighted)), 1)
 
 def assign_grade(score: float) -> str:
@@ -749,6 +794,11 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
             "item": "DNSSEC Cryptographic Chain",
             "status": "PASS" if dns_raw.get("dnssec", {}).get("active") else "WARN",
             "details": "DNSSEC cryptographically signed with validated DS records." if dns_raw.get("dnssec", {}).get("active") else "DNSSEC inactive; zone lacks cryptographic domain validation."
+        },
+        {
+            "item": "CAA Authority Authorization",
+            "status": "PASS" if dns_raw.get("caa", {}).get("found") else "WARN",
+            "details": f"Published CAA record restricts certificate issuance to authorized CAs ({', '.join(dns_raw.get('caa', {}).get('records', [])[:2])})." if dns_raw.get("caa", {}).get("found") else "Missing CAA record allows any public CA to issue certificates for this domain."
         }
     ]
 
@@ -801,8 +851,8 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
     set6_analyzed = [
         {
             "item": "Canary URI Probe Behavior",
-            "status": "PASS" if not is_honeypot else "FAIL",
-            "details": "Canary URIs properly returned 404 client error confirming transparent routing." if not is_honeypot else "Canary probe returned anomalous 200 OK for non-existent path."
+            "status": "PASS" if (not is_honeypot or canary_data.get("is_spa_routing")) else "FAIL",
+            "details": "Client-side Single Page Application (SPA) catch-all shell verified authentic." if canary_data.get("is_spa_routing") else ("Canary URIs properly returned 404 client error confirming transparent routing." if not is_honeypot else "Canary probe returned anomalous 200 OK for non-existent path.")
         },
         {
             "item": "Tarpit Response Latency",
