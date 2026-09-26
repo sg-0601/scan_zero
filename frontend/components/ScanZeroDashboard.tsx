@@ -30,6 +30,8 @@ import {
   Copy,
   Check,
   Terminal,
+  Printer,
+  ArrowLeft,
 } from "lucide-react";
 import {
   PieChart,
@@ -332,11 +334,12 @@ async function handleRequest(request) {
   };
 
   const handleDownloadReport = () => {
-    setIsDownloading(true);
-    setTimeout(() => {
+    if (activeSection === "all") {
       window.print();
-      setIsDownloading(false);
-    }, 250);
+    } else {
+      setActiveSection("all");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const navItems = [
@@ -466,10 +469,10 @@ async function handleRequest(request) {
           </button>
           <button
             onClick={handleDownloadReport}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-extrabold shadow-md shadow-teal-500/10 transition-all"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-extrabold shadow-md shadow-teal-500/10 transition-all active:scale-[0.98]"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>{isDownloading ? "Generating..." : "Download Report"}</span>
+            {activeSection === "all" ? <Printer className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+            <span>{activeSection === "all" ? "Print / Save PDF" : "Download Report"}</span>
           </button>
         </div>
       </div>
@@ -480,24 +483,60 @@ async function handleRequest(request) {
         {/* LEFT NAVIGATION SIDEBAR (9 Sections) */}
         {/* ========================================================= */}
         <aside className="lg:col-span-3 xl:col-span-2 flex flex-col gap-1.5 bg-white border border-gray-200 rounded-2xl p-3 h-fit sticky top-36">
-          <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-gray-500 font-bold border-b border-gray-200 mb-1">
-            Analysis Views
+          <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-gray-500 font-bold border-b border-gray-200 mb-1 flex items-center justify-between">
+            <span>Analysis Views</span>
+            {activeSection === "all" && (
+              <span className="text-[9px] text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">1-Page</span>
+            )}
           </div>
+
+          {/* Dedicated 1-Page Full Report Button */}
+          <button
+            onClick={() => {
+              setActiveSection("all");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left mb-1.5 ${
+              activeSection === "all"
+                ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-md shadow-teal-500/20 font-black"
+                : "bg-teal-50/80 text-teal-700 hover:bg-teal-100/80 border border-teal-200"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 truncate">
+              <FileText className="w-4 h-4 shrink-0" />
+              <span className="truncate">Full Dedicated Report</span>
+            </div>
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${
+              activeSection === "all" ? "bg-white/30 text-white" : "bg-teal-200/60 text-teal-800"
+            }`}>All 10</span>
+          </button>
+
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
+                onClick={() => {
+                  if (activeSection === "all") {
+                    const el = document.getElementById(`section-${item.id}`);
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    } else {
+                      setActiveSection(item.id);
+                    }
+                  } else {
+                    setActiveSection(item.id);
+                  }
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all text-left ${
                   isActive
                     ? "bg-gradient-to-r from-teal-50 to-teal-100 text-teal-600 border border-teal-300 font-bold shadow-sm"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-transparent"
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-teal-600" : "text-gray-400"}`} />
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-teal-600" : "text-gray-400"}`} />
                   <span className="truncate">{item.label}</span>
                 </div>
                 <ChevronRight className={`w-3 h-3 shrink-0 ${isActive ? "text-teal-600 opacity-100" : "opacity-0"}`} />
@@ -520,10 +559,42 @@ async function handleRequest(request) {
         {/* ========================================================= */}
         {/* CENTER MAIN INTERFACE AREA */}
         {/* ========================================================= */}
-        <main className="lg:col-span-6 xl:col-span-7 flex flex-col gap-6">
+        <main className={`${activeSection === "all" ? "lg:col-span-9 xl:col-span-10" : "lg:col-span-6 xl:col-span-7"} flex flex-col gap-8`}>
+          {/* DEDICATED FULL REPORT BANNER (Visible in All-in-One Mode) */}
+          {activeSection === "all" && (
+            <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-indigo-600 rounded-2xl p-5 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-36 z-20 backdrop-blur-md border border-white/20">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-teal-200" />
+                  <h2 className="font-black text-base tracking-tight">Dedicated Full Analysis Report (All 10 Subsections)</h2>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">1-PAGE UNIFIED VIEW</span>
+                </div>
+                <p className="text-xs text-teal-100 mt-1">
+                  Viewing complete security analysis across all 6 dimensions, visual matrix, and scoring breakdown consolidated on one screen.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-gray-900 text-xs font-black hover:bg-teal-50 shadow-md transition-all active:scale-[0.98]"
+                >
+                  <Printer className="w-4 h-4 text-teal-600" />
+                  <span>Save as PDF</span>
+                </button>
+                <button
+                  onClick={() => setActiveSection("overall")}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition-all"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Tabbed View</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* SECTION 1: OVERALL */}
-          {activeSection === "overall" && (
-            <div className="space-y-6">
+          {(activeSection === "overall" || activeSection === "all") && (
+            <div id="section-overall" className="space-y-6">
               {/* Header Status Banner (inspired by the green Financial Status banner in reference image) */}
               <div className={`rounded-2xl p-4 flex items-center justify-between shadow-sm border card-hover ${
                 currentSite.overallScore >= 80 ? 'bg-emerald-50/80 border-emerald-200' :
@@ -782,12 +853,14 @@ async function handleRequest(request) {
           {/* ========================================================= */}
           {/* SECTIONS 2 TO 7: SIX INDIVIDUAL SETS (Set 1 to Set 6) */}
           {/* ========================================================= */}
-          {["set1", "set2", "set3", "set4", "set5", "set6"].includes(activeSection) && (() => {
-            const setKey = activeSection;
-            const setDetails = currentSite.detailedSets[setKey];
+          {(["set1", "set2", "set3", "set4", "set5", "set6"].includes(activeSection) || activeSection === "all") && (
+            <div className="space-y-12">
+              {(activeSection === "all" ? ["set1", "set2", "set3", "set4", "set5", "set6"] : [activeSection]).map((setKey) => {
+                const setDetails = currentSite.detailedSets[setKey];
+                if (!setDetails) return null;
 
-            return (
-              <div className="space-y-6">
+                return (
+                  <div key={setKey} id={`section-${setKey}`} className="space-y-6 pt-6 border-t-2 border-gray-100 first:border-t-0 first:pt-0">
                 {/* Set Header Card */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
@@ -1545,13 +1618,15 @@ async function handleRequest(request) {
                 )}
               </div>
             );
-          })()}
+          })}
+        </div>
+      )}
 
           {/* ========================================================= */}
           {/* NEW SUBSECTION: CROSS-SET GRAPHICAL MATRIX (AFTER SET 6, BEFORE SCORING) */}
           {/* Pure mathematical representations across all 6 sets and 55 tools */}
           {/* ========================================================= */}
-          {activeSection === "visual_matrix" && (() => {
+          {(activeSection === "visual_matrix" || activeSection === "all") && (() => {
             const visualMatrix = currentSite.crossSetVisualMatrix || (currentSite as any).cross_set_visual_matrix || {};
 
             const radarData = (visualMatrix.radar_metrics && visualMatrix.radar_metrics.length > 0)
@@ -1596,7 +1671,7 @@ async function handleRequest(request) {
                 ];
 
             return (
-              <div className="space-y-6">
+              <div id="section-visual_matrix" className="space-y-6 pt-6 border-t-2 border-gray-100">
                 {/* Header Banner */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
@@ -1835,8 +1910,8 @@ async function handleRequest(request) {
           {/* ========================================================= */}
           {/* SECTION 8: SCORING (Deep Transparent Breakdown) */}
           {/* ========================================================= */}
-          {activeSection === "scoring" && (
-            <div className="space-y-6">
+          {(activeSection === "scoring" || activeSection === "all") && (
+            <div id="section-scoring" className="space-y-6 pt-6 border-t-2 border-gray-100">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <BarChart3 className="w-5 h-5 text-teal-600" />
@@ -2011,8 +2086,8 @@ async function handleRequest(request) {
           {/* ========================================================= */}
           {/* SECTION 9: SUMMARY REPORT */}
           {/* ========================================================= */}
-          {activeSection === "summary" && (
-            <div className="space-y-6">
+          {(activeSection === "summary" || activeSection === "all") && (
+            <div id="section-summary" className="space-y-6 pt-6 border-t-2 border-gray-100">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
                   <div>
@@ -2023,9 +2098,10 @@ async function handleRequest(request) {
                   </div>
                   <button
                     onClick={handleDownloadReport}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-bold transition-all shadow-lg"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-bold transition-all shadow-lg active:scale-[0.98]"
                   >
-                    <Download className="w-4 h-4" /> Download Client PDF
+                    {activeSection === "all" ? <Printer className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                    <span>{activeSection === "all" ? "Save as PDF" : "Full Report & PDF"}</span>
                   </button>
                 </div>
 
@@ -2169,7 +2245,8 @@ async function handleRequest(request) {
         {/* ========================================================= */}
         {/* RIGHT ACTIVITY STREAM (Dynamic Telemetry from 6 Workers) */}
         {/* ========================================================= */}
-        <aside className="lg:col-span-3 xl:col-span-3 space-y-6">
+        {activeSection !== "all" && (
+          <aside className="lg:col-span-3 xl:col-span-3 space-y-6">
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
               <h3 className="text-xs font-mono font-bold text-teal-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -2238,6 +2315,7 @@ async function handleRequest(request) {
             </div>
           </div>
         </aside>
+        )}
       </div>
     </div>
   );
