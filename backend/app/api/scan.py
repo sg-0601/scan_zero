@@ -74,7 +74,7 @@ async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
                     "created_at": cached.get("completed_at") or datetime.utcnow().isoformat(),
                     "completed_at": cached.get("completed_at") or datetime.utcnow().isoformat(),
                 }
-            return {"scan_id": c_scan_id, "status": "completed", "cached": True}
+            return {"scan_id": c_scan_id, "status": "completed", "cached": True, "results_json": cached, "score": cached.get("score"), "grade": cached.get("grade")}
 
         # 1b. Shared Database check (PostgreSQL): ensures different computers, laptops, and mobiles
         # retrieve the exact same completed scan if this domain was already audited within the TTL.
@@ -108,7 +108,7 @@ async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
                             "completed_at": db_scan.completed_at.isoformat() if db_scan.completed_at else datetime.utcnow().isoformat(),
                         }
                         await set_cached_scan(domain, db_scan.results_json)
-                        return {"scan_id": scan_id_str, "status": "completed", "cached": True}
+                        return {"scan_id": scan_id_str, "status": "completed", "cached": True, "results_json": db_scan.results_json, "score": db_scan.score, "grade": db_scan.grade}
         except Exception as db_err:
             logger.debug(f"Shared DB cache check skipped: {db_err}")
         

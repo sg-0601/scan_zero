@@ -134,7 +134,12 @@ export default function Home() {
       });
 
       if (!postRes.ok) {
-        throw new Error(`Unable to reach scan engine for '${domain}'. Please check if the backend is running.`);
+        let errorDetail = `Unable to reach scan engine for '${domain}'. Please check if the backend is running.`;
+        try {
+          const errData = await postRes.json();
+          if (errData?.detail) errorDetail = errData.detail;
+        } catch {}
+        throw new Error(errorDetail);
       }
 
       const postData = await postRes.json();
@@ -149,6 +154,12 @@ export default function Home() {
         setScanProgress(100);
         setScanStage("Audit Completed (Verified Cached Intelligence)");
         setScanWorker("All Workers Completed");
+        
+        // Immediate return if postData already delivers the full results_json payload
+        if (postData.results_json) {
+          return mapBackendToWebsiteResult(postData, url, domain);
+        }
+
         const getRes = await fetch(`${API_BASE_URL}/api/scan/${scanId}`);
         if (getRes.ok) {
           const scanData = await getRes.json();
