@@ -160,7 +160,10 @@ export default function DashboardPage() {
           <input
             type="text"
             value={newDomain}
-            onChange={(e) => setNewDomain(e.target.value)}
+            onChange={(e) => setNewDomain(e.target.value.toLowerCase())}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="yourcompany.com"
             className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
           />

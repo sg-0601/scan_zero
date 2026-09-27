@@ -37,7 +37,7 @@ export default function Home() {
 
   const handleUrlChange = (index: number, val: string) => {
     const updated = [...urls];
-    updated[index] = val;
+    updated[index] = val.toLowerCase();
     setUrls(updated);
 
     if (urlErrors[index]) {
@@ -878,6 +878,9 @@ export default function Home() {
                     type="text"
                     value={urlVal}
                     onChange={(e) => handleUrlChange(idx, e.target.value)}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder={
                       idx === 0
                         ? "Enter website URL (e.g. example.com)"
