@@ -465,8 +465,20 @@ async def zap_callback(payload: dict):
                 if isinstance(v, dict):
                     if not v.get("analyzed_items") or not isinstance(v.get("analyzed_items"), list) or not all(isinstance(x, dict) and "item" in x for x in v["analyzed_items"]):
                         v["analyzed_items"] = base_detailed.get(k, {}).get("analyzed_items", [])
+                    else:
+                        base_items_map = {item.get("item", "").lower().strip(): item for item in base_detailed.get(k, {}).get("analyzed_items", []) if isinstance(item, dict)}
+                        for ai in v["analyzed_items"]:
+                            if isinstance(ai, dict):
+                                bm = base_items_map.get(ai.get("item", "").lower().strip())
+                                if bm:
+                                    if not ai.get("details"):
+                                        ai["details"] = bm.get("details", "")
+                                    if not ai.get("risk_level"):
+                                        ai["risk_level"] = bm.get("risk_level", "Clean" if ai.get("status") == "PASS" else "Moderate")
+                                    if not ai.get("compensating_control"):
+                                        ai["compensating_control"] = bm.get("compensating_control", "None")
                     if not v.get("analyzedItems"):
-                        v["analyzedItems"] = base_detailed.get(k, {}).get("analyzedItems", [])
+                        v["analyzedItems"] = [item["item"] if isinstance(item, dict) else str(item) for item in v.get("analyzed_items", [])]
                     if not v.get("negative_remediation_guides"):
                         v["negative_remediation_guides"] = base_detailed.get(k, {}).get("negative_remediation_guides", [])
                     final_detailed[k] = v

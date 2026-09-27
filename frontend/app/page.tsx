@@ -495,10 +495,10 @@ export default function Home() {
           "Certificate Validity & Trust Chain",
         ],
         analyzed_items: [
-          { item: "TLS Protocol Version (1.2 to 1.3)", status: "PASS", details: "Validated modern TLSv1.3 cryptographic session." },
-          { item: "Cipher Suite Strength & Forward Secrecy", status: "PASS", details: "High-grade AEAD cipher with Perfect Forward Secrecy (ECDHE)." },
-          { item: "Port 80 Cleartext HTTP Redirect", status: setScores.set1 >= 90 ? "PASS" : "WARN", details: setScores.set1 >= 90 ? "Port 80 strictly enforces permanent 301 redirect to HTTPS." : "Ensure port 80 HTTP strictly returns permanent 301 redirect." },
-          { item: "Certificate Validity & Trust Chain", status: "PASS", details: "X.509 certificate trusted by major operating systems and root stores." }
+          { item: "TLS Protocol Version (1.2 to 1.3)", status: setScores.set1 >= 70 ? "PASS" : "FAIL", details: setScores.set1 >= 70 ? "Validated modern TLSv1.3 cryptographic session." : "Outdated TLS protocol version or handshake degradation detected.", risk_level: setScores.set1 >= 70 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "Cipher Suite Strength & Forward Secrecy", status: setScores.set1 >= 80 ? "PASS" : "WARN", details: setScores.set1 >= 80 ? "High-grade AEAD cipher with Perfect Forward Secrecy (ECDHE)." : "Legacy cipher suite without forward secrecy detected.", risk_level: setScores.set1 >= 80 ? "Clean" : "Moderate", compensating_control: "None" },
+          { item: "Port 80 Cleartext HTTP Redirect", status: setScores.set1 >= 90 ? "PASS" : "WARN", details: setScores.set1 >= 90 ? "Port 80 strictly enforces permanent 301 redirect to HTTPS." : "Ensure port 80 HTTP strictly returns permanent 301 redirect.", risk_level: setScores.set1 >= 90 ? "Clean" : "Moderate", compensating_control: "None" },
+          { item: "Certificate Validity & Trust Chain", status: setScores.set1 >= 50 ? "PASS" : "FAIL", details: setScores.set1 >= 50 ? "X.509 certificate trusted by major operating systems and root stores." : "Certificate authority trust chain invalid or near expiration.", risk_level: setScores.set1 >= 50 ? "Clean" : "Big", compensating_control: "None" }
         ],
         positiveFindings: [
           "Cryptographic handshake validated",
@@ -537,12 +537,12 @@ export default function Home() {
           "Cookie Security Attributes",
         ],
         analyzed_items: [
-          { item: "Content-Security-Policy (CSP)", status: setScores.set2 >= 85 ? "PASS" : "FAIL", details: setScores.set2 >= 85 ? "Content-Security-Policy enforces script and frame origins." : "Missing Content-Security-Policy header; vulnerable to cross-site scripting (XSS)." },
-          { item: "Strict-Transport-Security (HSTS)", status: setScores.set2 >= 70 ? "PASS" : "FAIL", details: setScores.set2 >= 70 ? "HSTS header enforces encrypted transport." : "Missing HSTS header; browser will permit unencrypted fallback." },
-          { item: "X-Frame-Options (Clickjacking)", status: setScores.set2 >= 60 ? "PASS" : "FAIL", details: setScores.set2 >= 60 ? "Framing restricted to SAMEORIGIN or DENY." : "Missing X-Frame-Options header; site can be framed in clickjacking overlays." },
-          { item: "X-Content-Type-Options", status: setScores.set2 >= 50 ? "PASS" : "FAIL", details: "nosniff directive prevents MIME confusion attacks." },
-          { item: "Referrer-Policy", status: "WARN", details: "Recommended strict-origin-when-cross-origin to protect sensitive query parameters." },
-          { item: "Cookie Security Attributes", status: "PASS", details: "Session cookies audited for Secure and HttpOnly flags." }
+          { item: "Content-Security-Policy (CSP)", status: setScores.set2 >= 85 ? "PASS" : "FAIL", details: setScores.set2 >= 85 ? "Content-Security-Policy enforces script and frame origins." : "Missing Content-Security-Policy header; vulnerable to cross-site scripting (XSS).", risk_level: setScores.set2 >= 85 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "Strict-Transport-Security (HSTS)", status: setScores.set2 >= 70 ? "PASS" : "FAIL", details: setScores.set2 >= 70 ? "HSTS header enforces encrypted transport." : "Missing HSTS header; browser will permit unencrypted fallback.", risk_level: setScores.set2 >= 70 ? "Clean" : "Moderate", compensating_control: "None" },
+          { item: "X-Frame-Options (Clickjacking)", status: setScores.set2 >= 60 ? "PASS" : "FAIL", details: setScores.set2 >= 60 ? "Framing restricted to SAMEORIGIN or DENY." : "Missing X-Frame-Options header; site can be framed in clickjacking overlays.", risk_level: setScores.set2 >= 60 ? "Clean" : "Moderate", compensating_control: "None" },
+          { item: "X-Content-Type-Options", status: setScores.set2 >= 50 ? "PASS" : "FAIL", details: "nosniff directive prevents MIME confusion attacks.", risk_level: setScores.set2 >= 50 ? "Clean" : "Small", compensating_control: "None" },
+          { item: "Referrer-Policy", status: "WARN", details: "Recommended strict-origin-when-cross-origin to protect sensitive query parameters.", risk_level: "Clean", compensating_control: "None" },
+          { item: "Cookie Security Attributes", status: "PASS", details: "Session cookies audited for Secure and HttpOnly flags.", risk_level: "Clean", compensating_control: "None" }
         ],
         positiveFindings: ["Basic HTTP responses returned"],
         negativeFindings: ["Missing Content-Security-Policy or HSTS header"],
@@ -588,10 +588,10 @@ export default function Home() {
           "DNSSEC Authentication",
         ],
         analyzed_items: [
-          { item: "SPF Record Syntax", status: setScores.set3 >= 75 ? "PASS" : "FAIL", details: setScores.set3 >= 75 ? "SPF record published with authorized mail sending mechanisms." : "Missing SPF record; unauthorized mail servers can spoof sender identity." },
-          { item: "DMARC Policy Enforcement", status: setScores.set3 >= 90 ? "PASS" : "WARN", details: setScores.set3 >= 90 ? "DMARC policy actively enforcing reject or quarantine." : "DMARC policy set to none or missing; allows domain impersonation." },
-          { item: "MX Mail Server Records", status: "PASS", details: "Authoritative mail exchangers resolve to active mail infrastructure." },
-          { item: "DNSSEC Authentication", status: setScores.set3 >= 95 ? "PASS" : "WARN", details: setScores.set3 >= 95 ? "DNSSEC cryptographic signatures verified." : "DNSSEC signing inactive at domain registrar." }
+          { item: "SPF Record Syntax", status: setScores.set3 >= 75 ? "PASS" : "FAIL", details: setScores.set3 >= 75 ? "SPF record published with authorized mail sending mechanisms." : "Missing SPF record; unauthorized mail servers can spoof sender identity.", risk_level: setScores.set3 >= 75 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "DMARC Policy Enforcement", status: setScores.set3 >= 90 ? "PASS" : (setScores.set3 >= 60 ? "WARN" : "FAIL"), details: setScores.set3 >= 90 ? "DMARC policy actively enforcing reject or quarantine." : (setScores.set3 >= 60 ? "DMARC policy set to none; domain is monitored but spoofing is not blocked." : "Missing DMARC policy record leaving domain exposed to phishing impersonation."), risk_level: setScores.set3 >= 90 ? "Clean" : (setScores.set3 >= 60 ? "Moderate" : "Big"), compensating_control: "None" },
+          { item: "MX Mail Server Records", status: setScores.set3 >= 50 ? "PASS" : "WARN", details: setScores.set3 >= 50 ? "Authoritative mail exchangers resolve to active mail infrastructure." : "No active MX mail exchanger records discovered.", risk_level: setScores.set3 >= 50 ? "Clean" : "Small", compensating_control: "None" },
+          { item: "DNSSEC Authentication", status: setScores.set3 >= 95 ? "PASS" : "WARN", details: setScores.set3 >= 95 ? "DNSSEC cryptographic signatures verified." : "DNSSEC signing inactive at domain registrar.", risk_level: setScores.set3 >= 95 ? "Clean" : "Moderate", compensating_control: "None" }
         ],
         positiveFindings: ["DNS records active and resolvable"],
         negativeFindings: ["DMARC policy should be enforced with p=reject"],
@@ -625,10 +625,10 @@ export default function Home() {
           "Subdomain Perimeter Footprint",
         ],
         analyzed_items: [
-          { item: "VirusTotal 70+ Vendor Threat Reputation", status: "PASS", details: "Zero security vendors flagged domain as malicious or phishing." },
-          { item: "Shodan Perimeter Ports & Exposed CVEs", status: "PASS", details: "Only standard web services (80/443) discovered; zero administrative services exposed." },
-          { item: "Dark Web Infostealer Credentials", status: "PASS", details: "Zero active compromised employee or user credentials discovered." },
-          { item: "Subdomain Perimeter Footprint", status: "PASS", details: "Certificate Transparency logs monitored for unexpected wildcard or legacy subdomains." }
+          { item: "VirusTotal 70+ Vendor Threat Reputation", status: setScores.set4 >= 60 ? "PASS" : "FAIL", details: setScores.set4 >= 60 ? "Zero security vendors flagged domain as malicious or phishing." : "Domain flagged by public threat intelligence feeds.", risk_level: setScores.set4 >= 60 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "Shodan Perimeter Ports & Exposed CVEs", status: setScores.set4 >= 75 ? "PASS" : "WARN", details: setScores.set4 >= 75 ? "Only standard web services (80/443) discovered; zero administrative services exposed." : "Non-standard or legacy perimeter services discovered during port audit.", risk_level: setScores.set4 >= 75 ? "Clean" : "Moderate", compensating_control: "None" },
+          { item: "Dark Web Infostealer Credentials", status: setScores.set4 >= 50 ? "PASS" : "FAIL", details: setScores.set4 >= 50 ? "Zero active compromised employee or user credentials discovered." : "Compromised credentials detected in cybercrime dumps.", risk_level: setScores.set4 >= 50 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "Subdomain Perimeter Footprint", status: setScores.set4 >= 70 ? "PASS" : "WARN", details: setScores.set4 >= 70 ? "Certificate Transparency logs confirm compact, well-managed attack surface." : "Broad public subdomain perimeter discovered via Certificate Transparency logs.", risk_level: setScores.set4 >= 70 ? "Clean" : "Small", compensating_control: "None" }
         ],
         positiveFindings: ["Perimeter monitored via Certificate Transparency and threat intelligence feeds"],
         negativeFindings: [],
@@ -649,10 +649,10 @@ export default function Home() {
           "Web Server Fingerprints",
         ],
         analyzed_items: [
-          { item: "Exposed Sensitive Files (.env, .git)", status: "PASS", details: "Diagnostic paths and hidden source code directories properly return 404 or 403." },
-          { item: "OWASP ZAP Dynamic Cloud Analysis", status: "PASS", details: "Dynamic surface probes verified clean against common injection vectors." },
-          { item: "Diagnostic Endpoints & Backups", status: "PASS", details: "Backup archives (.zip, .sql) and diagnostic debuggers blocked from public access." },
-          { item: "Web Server Fingerprints", status: "PASS", details: "Server banner information minimized to prevent version-specific exploitation." }
+          { item: "Exposed Sensitive Files (.env, .git)", status: setScores.set5 >= 80 ? "PASS" : "FAIL", details: setScores.set5 >= 80 ? "Diagnostic paths and hidden source code directories properly return 404 or 403." : "Sensitive configuration files or repository directories publicly accessible.", risk_level: setScores.set5 >= 80 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "OWASP ZAP Dynamic Cloud Analysis", status: setScores.set5 >= 85 ? "PASS" : (setScores.set5 >= 65 ? "WARN" : "FAIL"), details: setScores.set5 >= 85 ? "Dynamic surface probes verified clean against common injection vectors." : (setScores.set5 >= 65 ? "OWASP ZAP dynamic baseline audit flagged medium/low hygiene notices." : "Dynamic vulnerability alerts detected on host endpoints."), risk_level: setScores.set5 >= 85 ? "Clean" : (setScores.set5 >= 65 ? "Moderate" : "Big"), compensating_control: "None" },
+          { item: "Diagnostic Endpoints & Backups", status: setScores.set5 >= 75 ? "PASS" : "FAIL", details: setScores.set5 >= 75 ? "Backup archives (.zip, .sql) and diagnostic debuggers blocked from public access." : "Potential diagnostic endpoints or backup archives exposed.", risk_level: setScores.set5 >= 75 ? "Clean" : "Moderate", compensating_control: "None" },
+          { item: "Web Server Fingerprints", status: setScores.set5 >= 90 ? "PASS" : "WARN", details: setScores.set5 >= 90 ? "Server banner information minimized to prevent version-specific exploitation." : "Server banner disclosed in response headers.", risk_level: setScores.set5 >= 90 ? "Clean" : "Small", compensating_control: "None" }
         ],
         positiveFindings: ["No exposed sensitive configuration files on root path"],
         negativeFindings: [],
@@ -672,9 +672,9 @@ export default function Home() {
           "Host Authenticity Verification",
         ],
         analyzed_items: [
-          { item: "Canary Probe Behavior", status: "PASS", details: "Random nonexistent test paths returned authentic 404 client error responses." },
-          { item: "Tarpit Latency Profile", status: "PASS", details: "Standard response latency verified; zero artificial delay tarpits detected." },
-          { item: "Host Authenticity Verification", status: "PASS", details: "Target confirmed as genuine production infrastructure; zero deception detected." }
+          { item: "Canary Probe Behavior", status: setScores.set6 >= 80 ? "PASS" : "FAIL", details: setScores.set6 >= 80 ? "Random nonexistent test paths returned authentic 404 client error responses." : "Target server returned unexpected 200 OK for random non-existent paths.", risk_level: setScores.set6 >= 80 ? "Clean" : "Big", compensating_control: "None" },
+          { item: "Tarpit Latency Profile", status: setScores.set6 >= 85 ? "PASS" : "WARN", details: setScores.set6 >= 85 ? "Standard response latency verified; zero artificial delay tarpits detected." : "Elevated response latency observed during active probing.", risk_level: setScores.set6 >= 85 ? "Clean" : "Small", compensating_control: "None" },
+          { item: "Host Authenticity Verification", status: setScores.set6 >= 70 ? "PASS" : "FAIL", details: setScores.set6 >= 70 ? "Target confirmed as genuine production infrastructure; zero deception detected." : "Deception environment or honeypot profile detected.", risk_level: setScores.set6 >= 70 ? "Clean" : "Big", compensating_control: "None" }
         ],
         positiveFindings: ["Server returns expected error status for random test URIs"],
         negativeFindings: [],

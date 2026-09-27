@@ -58,6 +58,8 @@ export interface AnalyzedItem {
   item: string;
   status: "PASS" | "FAIL" | "WARN" | string;
   details: string;
+  risk_level?: "Clean" | "Big" | "Moderate" | "Small" | "Compensated" | "Negligible" | string;
+  compensating_control?: string;
 }
 
 export interface NegativeRemediationGuide {
@@ -952,11 +954,26 @@ async function handleRequest(request) {
                     <div className="space-y-2.5 text-xs text-gray-600">
                       {(setDetails.analyzed_items && setDetails.analyzed_items.length > 0
                         ? setDetails.analyzed_items
-                        : setDetails.analyzedItems.map((it: any) => typeof it === "object" ? it : { item: String(it), status: "PASS", details: "" })
+                        : (setDetails.analyzedItems || []).map((it: any) => {
+                            if (typeof it === "object" && it !== null) return it;
+                            const strIt = String(it);
+                            const isNeg = (setDetails.negativeFindings || []).some((nf: string) =>
+                              nf.toLowerCase().includes(strIt.toLowerCase().slice(0, 10))
+                            );
+                            return {
+                              item: strIt,
+                              status: isNeg ? "FAIL" : "PASS",
+                              details: isNeg ? "Audit gap identified in scan telemetry." : "Verified standard compliance.",
+                              risk_level: isNeg ? "Moderate" : "Clean",
+                              compensating_control: "None"
+                            };
+                          })
                       ).map((analyzed: any, idx: number) => {
                         const name = typeof analyzed === "string" ? analyzed : analyzed.item;
                         const status = (typeof analyzed === "object" ? analyzed.status : "PASS")?.toUpperCase() || "PASS";
                         const details = typeof analyzed === "object" ? analyzed.details : "";
+                        const riskLevel = typeof analyzed === "object" ? analyzed.risk_level : undefined;
+                        const compControl = typeof analyzed === "object" ? analyzed.compensating_control : undefined;
 
                         const isPass = status === "PASS";
                         const isWarn = status === "WARN";
@@ -964,7 +981,7 @@ async function handleRequest(request) {
                         return (
                           <div
                             key={idx}
-                            className={`p-2.5 rounded-xl border transition-all ${
+                            className={`p-3 rounded-xl border transition-all ${
                               isPass
                                 ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300'
                                 : isWarn
@@ -972,29 +989,55 @@ async function handleRequest(request) {
                                 : 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
                                 {isPass && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
                                 {isWarn && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />}
                                 {!isPass && !isWarn && <XCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                                <span className="font-bold text-gray-900">{name}</span>
+                                <span className="font-bold text-gray-900 text-xs sm:text-sm">{name}</span>
                               </div>
-                              <span
-                                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
-                                  isPass
-                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                                    : isWarn
-                                    ? 'bg-amber-100 text-amber-700 border-amber-300'
-                                    : 'bg-rose-100 text-rose-700 border-rose-300'
-                                }`}
-                              >
-                                {status}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap pl-6 sm:pl-0">
+                                {riskLevel && (
+                                  <span
+                                    className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                                      riskLevel === "Clean"
+                                        ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                        : riskLevel === "Big"
+                                        ? "bg-rose-100 text-rose-700 border-rose-200"
+                                        : riskLevel === "Moderate"
+                                        ? "bg-amber-100 text-amber-700 border-amber-200"
+                                        : riskLevel === "Compensated"
+                                        ? "bg-teal-100 text-teal-700 border-teal-200"
+                                        : "bg-gray-100 text-gray-700 border-gray-200"
+                                    }`}
+                                  >
+                                    {riskLevel}
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
+                                    isPass
+                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                      : isWarn
+                                      ? 'bg-amber-100 text-amber-700 border-amber-300'
+                                      : 'bg-rose-100 text-rose-700 border-rose-300'
+                                  }`}
+                                >
+                                  {status}
+                                </span>
+                              </div>
                             </div>
                             {details && (
-                              <p className="text-[11px] text-gray-600 pl-6 mt-1 leading-relaxed">
+                              <p className="text-[11px] text-gray-600 pl-6 mt-1.5 leading-relaxed font-mono">
                                 {details}
                               </p>
+                            )}
+                            {compControl && compControl !== "None" && (
+                              <div className="mt-1.5 pl-6 flex items-center gap-1.5">
+                                <span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                                  <span>🛡️ Defense:</span> {compControl}
+                                </span>
+                              </div>
                             )}
                           </div>
                         );

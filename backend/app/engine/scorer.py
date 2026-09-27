@@ -714,27 +714,41 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
     issuer_org = tls_info.get("issuer", {}).get("organizationName") or tls_info.get("issuer", {}).get("commonName") or "Trusted Certificate Authority"
     subject_cn = tls_info.get("subject", {}).get("commonName") or f"*.{domain}"
 
+    waf_info = worker_results.get("waf", {})
+    waf_detected = waf_info.get("waf_detected", False)
+    waf_name = waf_info.get("waf_name", "WAF / Edge Gateway")
+    csp_has_fa = hdr_raw.get("csp_has_frame_ancestors") or ("frame-ancestors" in str(hdr_raw.get("headers", {}).get("content-security-policy", "")).lower())
+    redirect_secure = worker_results.get("w2_tls", {}).get("raw_data", {}).get("redirect_secure", True)
+
     # Generate rich, dynamic analyzed items and step-by-step remediation guides with clickable documentation links
     set1_analyzed = [
         {
             "item": "TLS Protocol Negotiation",
             "status": "PASS" if tls_info.get("version") in ("TLSv1.3", "TLSv1.2") else "FAIL",
-            "details": f"Negotiated modern {tls_info.get('version', 'TLS')} cryptographic protocol." if tls_info.get("version") else "TLS handshake failed or outdated protocol negotiated."
+            "details": f"Negotiated modern {tls_info.get('version', 'TLS')} cryptographic protocol." if tls_info.get("version") else "TLS handshake failed or outdated protocol negotiated.",
+            "risk_level": "Clean" if tls_info.get("version") in ("TLSv1.3", "TLSv1.2") else ("Compensated" if waf_detected else "Big"),
+            "compensating_control": f"{waf_name} Edge SSL Termination" if (tls_info.get("version") not in ("TLSv1.3", "TLSv1.2") and waf_detected) else "None"
         },
         {
             "item": "Cipher Suite Strength",
             "status": "PASS" if tls_info.get("cipher") and not any(w in tls_info.get("cipher", "").lower() for w in ["rc4", "3des", "cbc", "null"]) else "WARN",
-            "details": f"High-strength cipher suite negotiated: {tls_info.get('cipher', 'Standard AES-GCM')}."
+            "details": f"High-strength cipher suite negotiated: {tls_info.get('cipher', 'Standard AES-GCM')}." if (tls_info.get("cipher") and not any(w in tls_info.get("cipher", "").lower() for w in ["rc4", "3des", "cbc", "null"])) else (f"Weak or deprecated cipher suite negotiated: {tls_info.get('cipher')}." if tls_info.get("cipher") else "No secure cipher suite negotiated."),
+            "risk_level": "Clean" if (tls_info.get("cipher") and not any(w in tls_info.get("cipher", "").lower() for w in ["rc4", "3des", "cbc", "null"])) else "Moderate",
+            "compensating_control": f"{waf_name} Cipher Filtering" if (tls_info.get("cipher") and any(w in tls_info.get("cipher", "").lower() for w in ["rc4", "3des", "cbc", "null"]) and waf_detected) else "None"
         },
         {
             "item": "Port 80 Cleartext Redirect",
-            "status": "PASS" if worker_results.get("w2_tls", {}).get("raw_data", {}).get("redirect_secure", True) else "FAIL",
-            "details": "Port 80 HTTP strictly enforces permanent 301 redirect to HTTPS." if worker_results.get("w2_tls", {}).get("raw_data", {}).get("redirect_secure", True) else "Port 80 HTTP does not immediately enforce strict 301 redirect to HTTPS."
+            "status": "PASS" if redirect_secure else "FAIL",
+            "details": "Port 80 HTTP strictly enforces permanent 301 redirect to HTTPS." if redirect_secure else "Port 80 HTTP does not immediately enforce strict 301 redirect to HTTPS.",
+            "risk_level": "Clean" if redirect_secure else ("Compensated" if "Strict-Transport-Security" in hdr_raw.get("active_headers", []) else "Moderate"),
+            "compensating_control": "Enforced HSTS Header" if (not redirect_secure and "Strict-Transport-Security" in hdr_raw.get("active_headers", [])) else "None"
         },
         {
             "item": "Certificate Trust Chain",
             "status": "PASS" if days > 30 else ("WARN" if days > 0 else "FAIL"),
-            "details": f"Certificate valid for {days} days issued by {issuer_org}." if days > 0 else "Certificate authority trust chain invalid or expired."
+            "details": f"Certificate valid for {days} days issued by {issuer_org}." if days > 0 else "Certificate authority trust chain invalid or expired.",
+            "risk_level": "Clean" if days > 30 else ("Small" if days > 0 else "Big"),
+            "compensating_control": "None"
         }
     ]
 
@@ -742,91 +756,145 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
         {
             "item": "Content-Security-Policy (CSP)",
             "status": "PASS" if "Content-Security-Policy" in hdr_raw.get("active_headers", []) else "FAIL",
-            "details": "Active Content-Security-Policy header restricting unauthorized script execution." if "Content-Security-Policy" in hdr_raw.get("active_headers", []) else "Missing Content-Security-Policy leaving application exposed to cross-site scripting (XSS)."
+            "details": "Active Content-Security-Policy header restricting unauthorized script execution." if "Content-Security-Policy" in hdr_raw.get("active_headers", []) else "Missing Content-Security-Policy leaving application exposed to cross-site scripting (XSS).",
+            "risk_level": "Clean" if "Content-Security-Policy" in hdr_raw.get("active_headers", []) else ("Compensated" if waf_detected else "Big"),
+            "compensating_control": f"{waf_name} XSS & Payload Filtering" if ("Content-Security-Policy" not in hdr_raw.get("active_headers", []) and waf_detected) else "None"
         },
         {
             "item": "Strict-Transport-Security (HSTS)",
             "status": "PASS" if "Strict-Transport-Security" in hdr_raw.get("active_headers", []) else "FAIL",
-            "details": "HSTS header enforced ensuring browsers mandate HTTPS encryption." if "Strict-Transport-Security" in hdr_raw.get("active_headers", []) else "Missing HSTS header allowing potential SSL-stripping man-in-the-middle attacks."
+            "details": "HSTS header enforced ensuring browsers mandate HTTPS encryption." if "Strict-Transport-Security" in hdr_raw.get("active_headers", []) else "Missing HSTS header allowing potential SSL-stripping man-in-the-middle attacks.",
+            "risk_level": "Clean" if "Strict-Transport-Security" in hdr_raw.get("active_headers", []) else ("Compensated" if redirect_secure else "Moderate"),
+            "compensating_control": "Strict 301 HTTPS Redirect" if ("Strict-Transport-Security" not in hdr_raw.get("active_headers", []) and redirect_secure) else "None"
         },
         {
             "item": "X-Frame-Options (Clickjacking)",
-            "status": "PASS" if "X-Frame-Options" in hdr_raw.get("active_headers", []) else "FAIL",
-            "details": "Framing restrictions enforced (SAMEORIGIN/DENY) preventing UI redressing." if "X-Frame-Options" in hdr_raw.get("active_headers", []) else "Missing X-Frame-Options header; site can be framed in malicious clickjacking iframes."
+            "status": "PASS" if ("X-Frame-Options" in hdr_raw.get("active_headers", []) or csp_has_fa) else "FAIL",
+            "details": "Framing restrictions enforced (SAMEORIGIN/DENY) preventing UI redressing." if "X-Frame-Options" in hdr_raw.get("active_headers", []) else ("Superseded by modern Content-Security-Policy 'frame-ancestors' directive restricting clickjacking." if csp_has_fa else "Missing X-Frame-Options header; site can be framed in malicious clickjacking iframes."),
+            "risk_level": "Clean" if ("X-Frame-Options" in hdr_raw.get("active_headers", []) or csp_has_fa) else ("Compensated" if waf_detected else "Moderate"),
+            "compensating_control": "CSP frame-ancestors directive" if csp_has_fa else (f"{waf_name} Framing Defense" if waf_detected else "None")
         },
         {
             "item": "X-Content-Type-Options",
             "status": "PASS" if "X-Content-Type-Options" in hdr_raw.get("active_headers", []) else "FAIL",
-            "details": "MIME-sniffing protection (nosniff) actively enforced." if "X-Content-Type-Options" in hdr_raw.get("active_headers", []) else "Missing X-Content-Type-Options: nosniff header."
+            "details": "MIME-sniffing protection (nosniff) actively enforced." if "X-Content-Type-Options" in hdr_raw.get("active_headers", []) else "Missing X-Content-Type-Options: nosniff header.",
+            "risk_level": "Clean" if "X-Content-Type-Options" in hdr_raw.get("active_headers", []) else ("Compensated" if waf_detected else "Small"),
+            "compensating_control": f"{waf_name} MIME Sniffing Filter" if ("X-Content-Type-Options" not in hdr_raw.get("active_headers", []) and waf_detected) else "None"
         },
         {
             "item": "Referrer-Policy",
             "status": "PASS" if "Referrer-Policy" in hdr_raw.get("active_headers", []) else "WARN",
-            "details": "Referrer-Policy privacy directive actively configured." if "Referrer-Policy" in hdr_raw.get("active_headers", []) else "Missing Referrer-Policy; browser may leak full query paths to external sites."
+            "details": "Referrer-Policy privacy directive actively configured." if "Referrer-Policy" in hdr_raw.get("active_headers", []) else "Missing Referrer-Policy; browser may leak full query paths to external sites.",
+            "risk_level": "Clean" if "Referrer-Policy" in hdr_raw.get("active_headers", []) else "Small",
+            "compensating_control": "None"
         },
         {
             "item": "Cookie Security Attributes",
             "status": "PASS" if not hdr_raw.get("cookie_issues") else "WARN",
-            "details": "Session cookies secured with HttpOnly and Secure flags." if not hdr_raw.get("cookie_issues") else "Insecure cookie flags detected without Secure or HttpOnly attributes."
+            "details": "Session cookies secured with HttpOnly and Secure flags." if not hdr_raw.get("cookie_issues") else "Insecure cookie flags detected without Secure or HttpOnly attributes.",
+            "risk_level": "Clean" if not hdr_raw.get("cookie_issues") else "Small",
+            "compensating_control": "None"
         }
     ]
+
+    mx_list = dns_raw.get("dns", {}).get("mx", [])
+    mx_details = f"Authoritative MX records verified: {', '.join(mx_list[:2])}." if mx_list else "No direct MX mail exchange servers discovered."
+    caa_records = dns_raw.get("caa", {}).get("records", [])
+    caa_details = f"Published CAA record restricts certificate issuance to authorized CAs ({', '.join(caa_records[:2])})." if dns_raw.get("caa", {}).get("found") else "Missing CAA record allows any public CA to issue certificates for this domain."
 
     set3_analyzed = [
         {
             "item": "SPF Authentication Record",
             "status": "PASS" if spf.get("found") else "FAIL",
-            "details": f"SPF record active with mechanism: {spf.get('mechanism') or 'configured'}." if spf.get("found") else "Missing SPF TXT record allowing unauthorized mail servers to spoof emails."
+            "details": f"SPF record active with mechanism: {spf.get('mechanism') or 'configured'}." if spf.get("found") else "Missing SPF TXT record allowing unauthorized mail servers to spoof emails.",
+            "risk_level": "Clean" if spf.get("found") else "Big",
+            "compensating_control": "None"
         },
         {
             "item": "DMARC Policy Enforcement",
             "status": "PASS" if dmarc.get("policy") in ("reject", "quarantine") else ("WARN" if dmarc.get("policy") == "none" else "FAIL"),
-            "details": f"Strict DMARC {dmarc.get('policy')} policy enforced against domain phishing." if dmarc.get("policy") in ("reject", "quarantine") else (f"DMARC is set to p={dmarc.get('policy', 'none')} (monitoring only; spoofed emails not rejected)." if dmarc.get("found") else "Missing DMARC policy record leaving domain defenseless against email impersonation.")
+            "details": f"Strict DMARC {dmarc.get('policy')} policy enforced against domain phishing." if dmarc.get("policy") in ("reject", "quarantine") else (f"DMARC is set to p={dmarc.get('policy', 'none')} (monitoring only; spoofed emails not rejected)." if dmarc.get("found") else "Missing DMARC policy record leaving domain defenseless against email impersonation."),
+            "risk_level": "Clean" if dmarc.get("policy") in ("reject", "quarantine") else ("Moderate" if dmarc.get("policy") == "none" else "Big"),
+            "compensating_control": "None"
         },
         {
             "item": "MX Mail Server Verification",
-            "status": "PASS" if dns_raw.get("dns", {}).get("mx") else "WARN",
-            "details": "Authoritative MX records verified." if dns_raw.get("dns", {}).get("mx") else "No direct MX mail exchange servers discovered."
+            "status": "PASS" if mx_list else "WARN",
+            "details": mx_details,
+            "risk_level": "Clean" if mx_list else "Small",
+            "compensating_control": "None"
         },
         {
             "item": "DNSSEC Cryptographic Chain",
             "status": "PASS" if dns_raw.get("dnssec", {}).get("active") else "WARN",
-            "details": "DNSSEC cryptographically signed with validated DS records." if dns_raw.get("dnssec", {}).get("active") else "DNSSEC inactive; zone lacks cryptographic domain validation."
+            "details": "DNSSEC cryptographically signed with validated DS records." if dns_raw.get("dnssec", {}).get("active") else "DNSSEC inactive; zone lacks cryptographic domain validation.",
+            "risk_level": "Clean" if dns_raw.get("dnssec", {}).get("active") else "Moderate",
+            "compensating_control": "None"
         },
         {
             "item": "CAA Authority Authorization",
             "status": "PASS" if dns_raw.get("caa", {}).get("found") else "WARN",
-            "details": f"Published CAA record restricts certificate issuance to authorized CAs ({', '.join(dns_raw.get('caa', {}).get('records', [])[:2])})." if dns_raw.get("caa", {}).get("found") else "Missing CAA record allows any public CA to issue certificates for this domain."
+            "details": caa_details,
+            "risk_level": "Clean" if dns_raw.get("caa", {}).get("found") else "Small",
+            "compensating_control": "None"
         }
     ]
+
+    shodan_ports = shodan_info.get("ports", [])
+    has_sensitive_ports = any(p in [3306, 5432, 27017, 6379, 1433] for p in shodan_ports)
+    shodan_vulns = shodan_info.get("vulns", [])
+    if shodan_vulns:
+        shodan_details = f"Known CVEs detected on public host: {', '.join(shodan_vulns[:2])}."
+        shodan_status = "FAIL"
+    elif has_sensitive_ports:
+        exposed_p = [str(p) for p in shodan_ports if p in [3306, 5432, 27017, 6379, 1433]]
+        shodan_details = f"Exposed internal database/backend ports detected: {', '.join(exposed_p)}."
+        shodan_status = "FAIL"
+    else:
+        shodan_details = f"{len(shodan_ports)} services active; zero known CVEs or exposed internal ports."
+        shodan_status = "PASS"
 
     set4_analyzed = [
         {
             "item": "VirusTotal 70+ AV Reputation",
             "status": "PASS" if vt_info.get("malicious", 0) == 0 else "FAIL",
-            "details": "Verified clean across 70+ security vendors on VirusTotal." if vt_info.get("malicious", 0) == 0 else f"Domain flagged malicious by {vt_info.get('malicious')} security vendors on VirusTotal."
+            "details": "Verified clean across 70+ security vendors on VirusTotal." if vt_info.get("malicious", 0) == 0 else f"Domain flagged malicious by {vt_info.get('malicious')} security vendors on VirusTotal.",
+            "risk_level": "Clean" if vt_info.get("malicious", 0) == 0 else "Big",
+            "compensating_control": "None"
         },
         {
             "item": "Shodan Ports & Exposure Audit",
-            "status": "PASS" if not shodan_info.get("vulns") and not any(p in [3306, 5432, 27017, 6379, 1433] for p in shodan_info.get("ports", [])) else "FAIL",
-            "details": f"{len(shodan_info.get('ports', []))} services active; zero known CVEs." if not shodan_info.get("vulns") else f"Known CVEs detected on public host: {', '.join(shodan_info.get('vulns', [])[:2])}."
+            "status": shodan_status,
+            "details": shodan_details,
+            "risk_level": "Clean" if shodan_status == "PASS" else ("Compensated" if waf_detected else "Big"),
+            "compensating_control": f"{waf_name} Port Proxy / Firewall" if (shodan_status != "PASS" and waf_detected) else "None"
         },
         {
             "item": "Dark Web Infostealer Breaches",
             "status": "PASS" if not breach_info.get("breaches_found") else "FAIL",
-            "details": "Zero compromised corporate credentials found in cybercrime dumps." if not breach_info.get("breaches_found") else f"{breach_info.get('breach_count', 0)} compromised credentials found in cybercrime dumps (Hudson Rock)."
+            "details": "Zero compromised corporate credentials found in cybercrime dumps." if not breach_info.get("breaches_found") else f"{breach_info.get('breach_count', 0)} compromised credentials found in cybercrime dumps (Hudson Rock).",
+            "risk_level": "Clean" if not breach_info.get("breaches_found") else "Big",
+            "compensating_control": "None"
         },
         {
             "item": "Subdomain Perimeter Footprint",
             "status": "PASS" if len(subs) <= 30 else "WARN",
-            "details": f"{len(subs)} public subdomains discovered via Certificate Transparency logs."
+            "details": f"Broad attack surface: {len(subs)} public subdomains discovered via Certificate Transparency logs." if len(subs) > 30 else f"Manageable footprint: {len(subs)} public subdomains discovered via Certificate Transparency logs.",
+            "risk_level": "Clean" if len(subs) <= 30 else "Small",
+            "compensating_control": "None"
         }
     ]
+
+    exposed_files = [f.get("title") for f in findings if f.get("category") == "dast" and not f.get("title", "").startswith("OWASP ZAP:")]
+    diag_endpoints = [str(f) for f in s5_neg if any(term in str(f).lower() for term in ["phpinfo", "backup", "diagnostic"])]
 
     set5_analyzed = [
         {
             "item": "Sensitive File Probes (.env, .git)",
-            "status": "PASS" if not any(f.get("category") == "dast" and not f.get("title", "").startswith("OWASP ZAP:") for f in findings) else "FAIL",
-            "details": "All sensitive diagnostic and configuration paths properly blocked (404/403)." if not any(f.get("category") == "dast" and not f.get("title", "").startswith("OWASP ZAP:") for f in findings) else "Critical sensitive configuration file publicly accessible."
+            "status": "PASS" if not exposed_files else "FAIL",
+            "details": f"Publicly accessible sensitive file detected: {', '.join(exposed_files[:2])}." if exposed_files else "All sensitive diagnostic and configuration paths properly blocked (404/403).",
+            "risk_level": "Clean" if not exposed_files else ("Compensated" if waf_detected else "Big"),
+            "compensating_control": f"{waf_name} Path Rules" if (exposed_files and waf_detected) else "None"
         },
         {
             "item": "OWASP ZAP Cloud Dynamic Analysis",
@@ -835,35 +903,51 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
                 f"OWASP ZAP baseline audit completed with {len(zap_med) + len(zap_low)} low/medium notices. Zero critical exploits." if zap_findings_list else (
                     "OWASP ZAP baseline audit verified 0 dynamic vulnerabilities." if zap_completed else "OWASP ZAP cloud baseline dynamic runner active."
                 )
-            ))
+            )),
+            "risk_level": "Big" if zap_high else ("Moderate" if zap_med else ("Compensated" if (zap_findings_list and waf_detected) else "Clean")),
+            "compensating_control": f"{waf_name} Web Application Firewall" if waf_detected else "None"
         },
         {
             "item": "Diagnostic Endpoints & Backups",
-            "status": "PASS" if not any("phpinfo" in str(f) or "backup" in str(f) for f in s5_neg) else "FAIL",
-            "details": "Web server backup files and diagnostic endpoints restricted."
+            "status": "PASS" if not diag_endpoints else "FAIL",
+            "details": f"Exposed backup or diagnostic endpoint detected: {diag_endpoints[0]}." if diag_endpoints else "Web server backup files and diagnostic endpoints restricted (HTTP 404/403).",
+            "risk_level": "Clean" if not diag_endpoints else ("Compensated" if waf_detected else "Moderate"),
+            "compensating_control": f"{waf_name} Path Shield" if (diag_endpoints and waf_detected) else "None"
         },
         {
             "item": "Web Server Fingerprints",
             "status": "PASS" if not hdr_raw.get("server_banner") else "WARN",
-            "details": "Server version details concealed from public headers." if not hdr_raw.get("server_banner") else f"Server banner disclosed: {hdr_raw.get('server_banner')}."
+            "details": "Server version details concealed from public headers." if not hdr_raw.get("server_banner") else f"Server banner disclosed: {hdr_raw.get('server_banner')}.",
+            "risk_level": "Clean" if not hdr_raw.get("server_banner") else "Small",
+            "compensating_control": "None"
         }
     ]
+
+    latency = honey_raw.get("latency_ms", 120)
+    latency_status = "PASS" if latency < 800 else "WARN"
+    latency_details = f"Normal server response latency ({latency}ms)." if latency < 800 else f"Elevated response latency ({latency}ms); potential tarpit or aggressive rate limiting detected."
 
     set6_analyzed = [
         {
             "item": "Canary URI Probe Behavior",
             "status": "PASS" if (not is_honeypot or canary_data.get("is_spa_routing")) else "FAIL",
-            "details": "Client-side Single Page Application (SPA) catch-all shell verified authentic." if canary_data.get("is_spa_routing") else ("Canary URIs properly returned 404 client error confirming transparent routing." if not is_honeypot else "Canary probe returned anomalous 200 OK for non-existent path.")
+            "details": "Client-side Single Page Application (SPA) catch-all shell verified authentic." if canary_data.get("is_spa_routing") else ("Canary URIs properly returned 404 client error confirming transparent routing." if not is_honeypot else "Canary probe returned anomalous 200 OK for non-existent path."),
+            "risk_level": "Clean" if (not is_honeypot or canary_data.get("is_spa_routing")) else "Big",
+            "compensating_control": "SPA Client Routing Exception" if canary_data.get("is_spa_routing") else "None"
         },
         {
             "item": "Tarpit Response Latency",
-            "status": "PASS" if honey_raw.get("latency_ms", 100) < 800 else "WARN",
-            "details": f"Normal server response latency ({honey_raw.get('latency_ms', 120)}ms)."
+            "status": latency_status,
+            "details": latency_details,
+            "risk_level": "Clean" if latency < 800 else "Small",
+            "compensating_control": "None"
         },
         {
             "item": "Host Authenticity Verification",
             "status": "PASS" if not is_honeypot else "FAIL",
-            "details": "Authentic production environment verified; zero deception detected." if not is_honeypot else "Deception environment / Honeypot profile detected."
+            "details": "Authentic production environment verified; zero deception detected." if not is_honeypot else "Deception environment / Honeypot profile detected.",
+            "risk_level": "Clean" if not is_honeypot else "Big",
+            "compensating_control": "None"
         }
     ]
 

@@ -350,8 +350,20 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
                     # Preserve analyzed_items and negative_remediation_guides across all sets
                     if not val.get("analyzed_items") or not isinstance(val.get("analyzed_items"), list) or not all(isinstance(x, dict) and "item" in x for x in val["analyzed_items"]):
                         val["analyzed_items"] = base_set.get("analyzed_items", [])
+                    else:
+                        base_items_map = {item.get("item", "").lower().strip(): item for item in base_set.get("analyzed_items", []) if isinstance(item, dict)}
+                        for ai in val["analyzed_items"]:
+                            if isinstance(ai, dict):
+                                bm = base_items_map.get(ai.get("item", "").lower().strip())
+                                if bm:
+                                    if not ai.get("details"):
+                                        ai["details"] = bm.get("details", "")
+                                    if not ai.get("risk_level"):
+                                        ai["risk_level"] = bm.get("risk_level", "Clean" if ai.get("status") == "PASS" else "Moderate")
+                                    if not ai.get("compensating_control"):
+                                        ai["compensating_control"] = bm.get("compensating_control", "None")
                     if not val.get("analyzedItems"):
-                        val["analyzedItems"] = base_set.get("analyzedItems", [])
+                        val["analyzedItems"] = [item["item"] if isinstance(item, dict) else str(item) for item in val.get("analyzed_items", [])]
                     if not val.get("negative_remediation_guides"):
                         val["negative_remediation_guides"] = base_set.get("negative_remediation_guides", [])
 
