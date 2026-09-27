@@ -128,19 +128,47 @@ body {
   transition: transform 0.1s linear;
 }
 
-/* Print / Executive PDF Export Styles */
+/* Print / Executive PDF Export Styles (Strict 1-Page-Per-Subsection A4) */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  header, aside, .no-print, button {
+  header, aside, .no-print, button, .print-hide {
     display: none !important;
   }
   main {
     width: 100% !important;
     max-width: 100% !important;
     grid-column: span 12 / span 12 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .report-a4-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    min-height: 275mm !important;
+    max-height: 280mm !important;
+    padding: 2mm 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+  }
+  .report-a4-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
   .card-hover {
     box-shadow: none !important;

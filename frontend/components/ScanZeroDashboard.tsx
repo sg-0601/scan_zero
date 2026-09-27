@@ -334,12 +334,11 @@ async function handleRequest(request) {
   };
 
   const handleDownloadReport = () => {
-    if (activeSection === "all") {
+    setIsDownloading(true);
+    setTimeout(() => {
       window.print();
-    } else {
-      setActiveSection("all");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+      setIsDownloading(false);
+    }, 150);
   };
 
   const navItems = [
@@ -418,10 +417,34 @@ async function handleRequest(request) {
     }
   };
 
+  const renderA4Header = (pageNum: number, title: string) => (
+    <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4 text-gray-400 print:text-black print:pb-2 print:mb-3">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[10px] uppercase font-bold tracking-widest text-teal-600 print:text-teal-900">
+          ScanZero Security Audit
+        </span>
+        <span className="text-gray-300">•</span>
+        <span className="font-mono text-[10px] text-gray-700 font-bold">{currentSite.domain}</span>
+        <span className="text-gray-300">•</span>
+        <span className="text-[10px] text-gray-500 font-medium truncate max-w-[260px]">{title}</span>
+      </div>
+      <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-gray-600 bg-gray-100 print:bg-transparent px-2.5 py-0.5 rounded-full border border-gray-200 print:border-none">
+        <span>A4 Page {pageNum} of 10</span>
+      </div>
+    </div>
+  );
+
+  const renderA4Footer = (pageNum: number) => (
+    <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-6 text-[9px] font-mono text-gray-400 print:text-gray-600 print:mt-2 print:pt-2">
+      <span>Target: {currentSite.domain} • Verified by ScanZero AI Engine</span>
+      <span>Confidential Security Assessment • Page {pageNum} of 10</span>
+    </div>
+  );
+
   return (
     <div className="w-full min-h-screen bg-gray-50 text-gray-900 flex flex-col font-sans">
       {/* Top Application Bar (inspired by the reference Jira/SaaS header) */}
-      <div className="w-full bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-16 z-40 backdrop-blur-md">
+      <div className="w-full bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-16 z-40 backdrop-blur-md print:hidden">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-1.5 rounded-xl">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
@@ -471,45 +494,21 @@ async function handleRequest(request) {
             onClick={handleDownloadReport}
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-extrabold shadow-md shadow-teal-500/10 transition-all active:scale-[0.98]"
           >
-            {activeSection === "all" ? <Printer className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-            <span>{activeSection === "all" ? "Print / Save PDF" : "Download Report"}</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>{isDownloading ? "Generating PDF..." : "Download Report"}</span>
           </button>
         </div>
       </div>
 
       {/* Main Dashboard Layout (Left Nav + Main Content + Right Activity Stream) */}
-      <div className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:block print:p-0 print:m-0 print:max-w-none">
         {/* ========================================================= */}
         {/* LEFT NAVIGATION SIDEBAR (9 Sections) */}
         {/* ========================================================= */}
-        <aside className="lg:col-span-3 xl:col-span-2 flex flex-col gap-1.5 bg-white border border-gray-200 rounded-2xl p-3 h-fit sticky top-36">
-          <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-gray-500 font-bold border-b border-gray-200 mb-1 flex items-center justify-between">
-            <span>Analysis Views</span>
-            {activeSection === "all" && (
-              <span className="text-[9px] text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">1-Page</span>
-            )}
+        <aside className="lg:col-span-3 xl:col-span-2 flex flex-col gap-1.5 bg-white border border-gray-200 rounded-2xl p-3 h-fit sticky top-36 print:hidden">
+          <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-gray-500 font-bold border-b border-gray-200 mb-1">
+            Analysis Views
           </div>
-
-          {/* Dedicated 1-Page Full Report Button */}
-          <button
-            onClick={() => {
-              setActiveSection("all");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left mb-1.5 ${
-              activeSection === "all"
-                ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-md shadow-teal-500/20 font-black"
-                : "bg-teal-50/80 text-teal-700 hover:bg-teal-100/80 border border-teal-200"
-            }`}
-          >
-            <div className="flex items-center gap-2.5 truncate">
-              <FileText className="w-4 h-4 shrink-0" />
-              <span className="truncate">Full Dedicated Report</span>
-            </div>
-            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${
-              activeSection === "all" ? "bg-white/30 text-white" : "bg-teal-200/60 text-teal-800"
-            }`}>All 10</span>
-          </button>
 
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -517,26 +516,15 @@ async function handleRequest(request) {
             return (
               <button
                 key={item.id}
-                onClick={() => {
-                  if (activeSection === "all") {
-                    const el = document.getElementById(`section-${item.id}`);
-                    if (el) {
-                      el.scrollIntoView({ behavior: "smooth", block: "start" });
-                    } else {
-                      setActiveSection(item.id);
-                    }
-                  } else {
-                    setActiveSection(item.id);
-                  }
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all text-left ${
+                onClick={() => setActiveSection(item.id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                   isActive
                     ? "bg-gradient-to-r from-teal-50 to-teal-100 text-teal-600 border border-teal-300 font-bold shadow-sm"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-transparent"
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-teal-600" : "text-gray-400"}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-teal-600" : "text-gray-400"}`} />
                   <span className="truncate">{item.label}</span>
                 </div>
                 <ChevronRight className={`w-3 h-3 shrink-0 ${isActive ? "text-teal-600 opacity-100" : "opacity-0"}`} />
@@ -559,42 +547,15 @@ async function handleRequest(request) {
         {/* ========================================================= */}
         {/* CENTER MAIN INTERFACE AREA */}
         {/* ========================================================= */}
-        <main className={`${activeSection === "all" ? "lg:col-span-9 xl:col-span-10" : "lg:col-span-6 xl:col-span-7"} flex flex-col gap-8`}>
-          {/* DEDICATED FULL REPORT BANNER (Visible in All-in-One Mode) */}
-          {activeSection === "all" && (
-            <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-indigo-600 rounded-2xl p-5 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-36 z-20 backdrop-blur-md border border-white/20">
-              <div>
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-teal-200" />
-                  <h2 className="font-black text-base tracking-tight">Dedicated Full Analysis Report (All 10 Subsections)</h2>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">1-PAGE UNIFIED VIEW</span>
-                </div>
-                <p className="text-xs text-teal-100 mt-1">
-                  Viewing complete security analysis across all 6 dimensions, visual matrix, and scoring breakdown consolidated on one screen.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-gray-900 text-xs font-black hover:bg-teal-50 shadow-md transition-all active:scale-[0.98]"
-                >
-                  <Printer className="w-4 h-4 text-teal-600" />
-                  <span>Save as PDF</span>
-                </button>
-                <button
-                  onClick={() => setActiveSection("overall")}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition-all"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Tabbed View</span>
-                </button>
-              </div>
-            </div>
-          )}
-
+        <main className="lg:col-span-6 xl:col-span-7 flex flex-col gap-6 print:block print:w-full print:p-0 print:m-0">
           {/* SECTION 1: OVERALL */}
-          {(activeSection === "overall" || activeSection === "all") && (
-            <div id="section-overall" className="space-y-6">
+          <div
+            id="section-overall"
+            className={`${activeSection === "overall" ? "block" : "hidden print:block"} report-a4-page space-y-6`}
+          >
+            <div className="hidden print:block">
+              {renderA4Header(1, "Executive Posture & Health Gauges")}
+            </div>
               {/* Header Status Banner (inspired by the green Financial Status banner in reference image) */}
               <div className={`rounded-2xl p-4 flex items-center justify-between shadow-sm border card-hover ${
                 currentSite.overallScore >= 80 ? 'bg-emerald-50/80 border-emerald-200' :
@@ -847,20 +808,28 @@ async function handleRequest(request) {
                   </ul>
                 </div>
               </div>
+              <div className="hidden print:block">
+                {renderA4Footer(1)}
+              </div>
             </div>
-          )}
 
           {/* ========================================================= */}
           {/* SECTIONS 2 TO 7: SIX INDIVIDUAL SETS (Set 1 to Set 6) */}
           {/* ========================================================= */}
-          {(["set1", "set2", "set3", "set4", "set5", "set6"].includes(activeSection) || activeSection === "all") && (
-            <div className="space-y-12">
-              {(activeSection === "all" ? ["set1", "set2", "set3", "set4", "set5", "set6"] : [activeSection]).map((setKey) => {
-                const setDetails = currentSite.detailedSets[setKey];
-                if (!setDetails) return null;
+          {["set1", "set2", "set3", "set4", "set5", "set6"].map((setKey, setIdx) => {
+            const setDetails = currentSite.detailedSets[setKey];
+            if (!setDetails) return null;
+            const pageNum = setIdx + 2;
 
-                return (
-                  <div key={setKey} id={`section-${setKey}`} className="space-y-6 pt-6 border-t-2 border-gray-100 first:border-t-0 first:pt-0">
+            return (
+              <div
+                key={setKey}
+                id={`section-${setKey}`}
+                className={`${activeSection === setKey ? "block" : "hidden print:block"} report-a4-page space-y-6`}
+              >
+                <div className="hidden print:block">
+                  {renderA4Header(pageNum, setDetails.name)}
+                </div>
                 {/* Set Header Card */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
@@ -1616,17 +1585,18 @@ async function handleRequest(request) {
                     </div>
                   </div>
                 )}
+                <div className="hidden print:block">
+                  {renderA4Footer(pageNum)}
+                </div>
               </div>
             );
           })}
-        </div>
-      )}
 
           {/* ========================================================= */}
           {/* NEW SUBSECTION: CROSS-SET GRAPHICAL MATRIX (AFTER SET 6, BEFORE SCORING) */}
           {/* Pure mathematical representations across all 6 sets and 55 tools */}
           {/* ========================================================= */}
-          {(activeSection === "visual_matrix" || activeSection === "all") && (() => {
+          {(() => {
             const visualMatrix = currentSite.crossSetVisualMatrix || (currentSite as any).cross_set_visual_matrix || {};
 
             const radarData = (visualMatrix.radar_metrics && visualMatrix.radar_metrics.length > 0)
@@ -1671,7 +1641,13 @@ async function handleRequest(request) {
                 ];
 
             return (
-              <div id="section-visual_matrix" className="space-y-6 pt-6 border-t-2 border-gray-100">
+              <div
+                id="section-visual_matrix"
+                className={`${activeSection === "visual_matrix" ? "block" : "hidden print:block"} report-a4-page space-y-6 pt-6 border-t-2 border-gray-100`}
+              >
+                <div className="hidden print:block">
+                  {renderA4Header(8, "Cross-Set Graphical Matrix & Radar Overlays")}
+                </div>
                 {/* Header Banner */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
@@ -1903,16 +1879,24 @@ async function handleRequest(request) {
                   </div>
 
                 </div>
+                <div className="hidden print:block">
+                  {renderA4Footer(8)}
+                </div>
               </div>
             );
           })()}
 
           {/* ========================================================= */}
-          {/* SECTION 8: SCORING (Deep Transparent Breakdown) */}
+          {/* SECTION 9: SCORING (Deep Transparent Breakdown) */}
           {/* ========================================================= */}
-          {(activeSection === "scoring" || activeSection === "all") && (
-            <div id="section-scoring" className="space-y-6 pt-6 border-t-2 border-gray-100">
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div
+            id="section-scoring"
+            className={`${activeSection === "scoring" ? "block" : "hidden print:block"} report-a4-page space-y-6 pt-6 border-t-2 border-gray-100`}
+          >
+            <div className="hidden print:block">
+              {renderA4Header(9, "Scoring Breakdown & Contextual Risk Analysis")}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <BarChart3 className="w-5 h-5 text-teal-600" />
                   <h2 className="text-2xl font-black text-gray-900">Transparent Scoring Breakdown</h2>
@@ -2080,30 +2064,37 @@ async function handleRequest(request) {
                   })}
                 </div>
               </div>
+              <div className="hidden print:block">
+                {renderA4Footer(9)}
+              </div>
             </div>
-          )}
 
           {/* ========================================================= */}
-          {/* SECTION 9: SUMMARY REPORT */}
+          {/* SECTION 10: SUMMARY REPORT */}
           {/* ========================================================= */}
-          {(activeSection === "summary" || activeSection === "all") && (
-            <div id="section-summary" className="space-y-6 pt-6 border-t-2 border-gray-100">
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
-                  <div>
-                    <h2 className="text-2xl font-black text-gray-900">ScanZero Executive Summary Report</h2>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Comprehensive posture audit for client sharing and board presentations.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleDownloadReport}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-bold transition-all shadow-lg active:scale-[0.98]"
-                  >
-                    {activeSection === "all" ? <Printer className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-                    <span>{activeSection === "all" ? "Save as PDF" : "Full Report & PDF"}</span>
-                  </button>
+          <div
+            id="section-summary"
+            className={`${activeSection === "summary" ? "block" : "hidden print:block"} report-a4-page space-y-6 pt-6 border-t-2 border-gray-100`}
+          >
+            <div className="hidden print:block">
+              {renderA4Header(10, "Executive Summary & Action Plan")}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900">ScanZero Executive Summary Report</h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Comprehensive posture audit for client sharing and board presentations.
+                  </p>
                 </div>
+                <button
+                  onClick={handleDownloadReport}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-bold transition-all shadow-lg active:scale-[0.98]"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF Report</span>
+                </button>
+              </div>
 
                 {/* Score Summary Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -2238,15 +2229,16 @@ async function handleRequest(request) {
                   </div>
                 </div>
               </div>
+              <div className="hidden print:block">
+                {renderA4Footer(10)}
+              </div>
             </div>
-          )}
         </main>
 
         {/* ========================================================= */}
         {/* RIGHT ACTIVITY STREAM (Dynamic Telemetry from 6 Workers) */}
         {/* ========================================================= */}
-        {activeSection !== "all" && (
-          <aside className="lg:col-span-3 xl:col-span-3 space-y-6">
+        <aside className="lg:col-span-3 xl:col-span-3 space-y-6 print:hidden">
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
               <h3 className="text-xs font-mono font-bold text-teal-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -2315,7 +2307,6 @@ async function handleRequest(request) {
             </div>
           </div>
         </aside>
-        )}
       </div>
     </div>
   );
