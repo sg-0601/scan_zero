@@ -35,9 +35,9 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     if scan_id in MEMORY_SCANS:
         MEMORY_SCANS[scan_id].update({
             "status": "running",
-            "progress": 25,
-            "stage": "Executing 6 Parallel Worker Engines & Cloud ZAP...",
-            "current_worker": "Workers 1-6 (OSINT, TLS, Headers, DNS, DAST, Canary)"
+            "progress": 18,
+            "stage": "Dispatching 6 Parallel Worker Engines...",
+            "current_worker": "Workers 1-6"
         })
 
     # 1. Initialize Workers
@@ -49,24 +49,58 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
         DastWorker(),
         HoneypotWorker()
     ]
-    
-    # 2 & 3. Run in parallel with timeout handling inside worker execution
-    tasks = [worker.execute(domain, url) for worker in workers]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
+    worker_titles = {
+        "w1_osint": "Worker 1: OSINT & Threat Intel",
+        "w2_tls": "Worker 2: TLS & Cryptography",
+        "w3_headers": "Worker 3: HTTP Headers & CSP",
+        "w4_dns": "Worker 4: DNS & Anti-Spoofing",
+        "w5_dast": "Worker 5: Dynamic Surface & DAST",
+        "w6_honeypot": "Worker 6: Deception & Canary"
+    }
+
+    # 2 & 3. Run in parallel with dynamic per-worker completion tracking
+    completed_count = 0
+
+    async def run_worker_tracked(w):
+        nonlocal completed_count
+        try:
+            res = await w.execute(domain, url)
+        except Exception as e:
+            res = e
+        completed_count += 1
+        pct = 18 + int((completed_count / len(workers)) * 36)  # 18% -> 54%
+        w_title = worker_titles.get(w.name, w.name)
+        if scan_id in MEMORY_SCANS:
+            MEMORY_SCANS[scan_id].update({
+                "progress": pct,
+                "stage": f"{w_title} finished ({completed_count}/{len(workers)} workers completed)",
+                "current_worker": w_title
+            })
+        return w, res
+
+    tasks = [run_worker_tracked(w) for w in workers]
+    worker_outcomes = await asyncio.gather(*tasks)
+
     # 4 & 5. Collect and Merge Results
     all_findings = []
     worker_results_dict = {}
-    
-    for w, res in zip(workers, results):
+
+    for w, res in worker_outcomes:
         if isinstance(res, Exception):
             logger.error(f"Worker {w.name} failed with exception: {res}")
             continue
-            
+
         worker_results_dict[w.name] = res
         all_findings.extend(res.get("findings", []))
-        
+
     # 0. WAF Detection via WAFW00F
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "progress": 58,
+            "stage": "WAF & Boundary Shield Analysis (WAFW00F)...",
+            "current_worker": "Perimeter Defense Worker"
+        })
     try:
         from app.utils.stealth import detect_waf
         waf_res = await asyncio.get_event_loop().run_in_executor(None, detect_waf, domain)
@@ -84,7 +118,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
 
     if scan_id in MEMORY_SCANS:
         MEMORY_SCANS[scan_id].update({
-            "progress": 55,
+            "progress": 62,
             "stage": "Aggregating 55-Tool Telemetry & EPSS/CISA Correlation...",
             "current_worker": "Threat Correlation Engine"
         })
@@ -157,6 +191,12 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     remediated_findings = generate_fixes(filtered_findings)
     
     # 8. Baseline Heuristic Scoring (used as robust mathematical baseline)
+    if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "progress": 66,
+            "stage": "Calculating Multi-Tool Telemetry Baseline Scores...",
+            "current_worker": "Empirical Baseline Calculator"
+        })
     set_scores = calculate_category_scores(remediated_findings, worker_results_dict)
     score = calculate_score(remediated_findings, worker_results_dict, set_scores)
     grade = assign_grade(score)
@@ -164,25 +204,60 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     scoring_breakdown = generate_scoring_breakdown(domain, remediated_findings, set_scores)
 
     # 9. Google Gemini Multi-Tool Intelligence Synthesis Engine
-    if scan_id in MEMORY_SCANS:
-        MEMORY_SCANS[scan_id].update({
-            "progress": 75,
-            "stage": "AI Multi-Tool Intelligence Core Synthesizing Findings...",
-            "current_worker": "AI Synthesis Core"
-        })
     logger.info(f"Passing multi-tool telemetry for {domain} into Google Gemini Intelligence Engine...")
+    gemini_done = False
+
+    async def gemini_progress_ticker():
+        stages = [
+            (68, "Gemini AI: Ingesting 55-tool raw telemetry & empirical baseline..."),
+            (71, "Gemini AI: Rules 1-2 • Holistic cross-set analysis & compensating controls..."),
+            (74, "Gemini AI: Rules 3-5 • Categorizing risk levels & dynamic mitigation adjustments..."),
+            (78, "Gemini AI: Rule 6 • Evaluating dynamic critical vulnerability caps & proofs..."),
+            (82, "Gemini AI: Correlating adversarial attack chain & exploit scenarios..."),
+            (86, "Gemini AI: Generating tailored server hardening configurations (Nginx, Apache, Caddy)..."),
+            (89, "Gemini AI: Rules 9-10 • OWASP ZAP dynamic risk classification & verification..."),
+            (92, "Gemini AI: Synthesizing transparent point attribution & visual matrix..."),
+            (94, "Gemini AI: Finalizing executive threat assessment & recommendations...")
+        ]
+        stage_idx = 0
+        while not gemini_done and stage_idx < len(stages):
+            p, stg = stages[stage_idx]
+            if scan_id in MEMORY_SCANS:
+                MEMORY_SCANS[scan_id].update({
+                    "progress": p,
+                    "stage": stg,
+                    "current_worker": "Gemini AI Intelligence Core"
+                })
+            stage_idx += 1
+            await asyncio.sleep(1.3)
+
+        cur = 94
+        while not gemini_done and cur < 96:
+            await asyncio.sleep(1.5)
+            cur += 1
+            if scan_id in MEMORY_SCANS:
+                MEMORY_SCANS[scan_id].update({
+                    "progress": cur,
+                    "stage": "Gemini AI: Finalizing multi-tool synthesis...",
+                    "current_worker": "Gemini AI Intelligence Core"
+                })
+
+    ticker_task = asyncio.create_task(gemini_progress_ticker())
     try:
         gemini_intel = await synthesize_scan_intelligence(domain, url, worker_results_dict, remediated_findings)
     except Exception as e:
         logger.error(f"Gemini intelligence synthesis encountered exception: {e}", exc_info=True)
         from app.engine.gemini_analyzer import generate_fallback_intelligence
         gemini_intel = generate_fallback_intelligence(domain, url, worker_results_dict, remediated_findings)
+    finally:
+        gemini_done = True
+        ticker_task.cancel()
 
     if scan_id in MEMORY_SCANS:
         MEMORY_SCANS[scan_id].update({
-            "progress": 92,
-            "stage": "Assembling Mathematical Visual Matrix & Remediation Guides...",
-            "current_worker": "AI Posture Matrix Generator"
+            "progress": 96,
+            "stage": "Harmonizing 6-Set Posture Scores & Evidence Proofs...",
+            "current_worker": "Scoring Harmonizer"
         })
 
     # Initialize baseline summary items
@@ -359,6 +434,11 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
 
     # 10. Update Memory Store
     if scan_id in MEMORY_SCANS:
+        MEMORY_SCANS[scan_id].update({
+            "progress": 98,
+            "stage": "Audit Finalized • Preparing Executive Intelligence Dashboard...",
+            "current_worker": "Scan Complete"
+        })
         MEMORY_SCANS[scan_id].update({
             "status": "completed",
             "progress": 100,

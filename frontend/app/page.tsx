@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Plus, X, Globe, Shield, ArrowRight, Activity, Sparkles, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import ScanZeroDashboard, { WebsiteResult } from "@/components/ScanZeroDashboard";
@@ -19,6 +19,33 @@ export default function Home() {
   const [scanStage, setScanStage] = useState("Dispatching parallel multi-tool workers...");
   const [scanWorker, setScanWorker] = useState("Workers 1-6 & Cloud ZAP Runner");
   const [scanResults, setScanResults] = useState<WebsiteResult[]>([]);
+
+  const targetProgressRef = useRef<number>(15);
+
+  // Smooth continuous client-side progress tick: advances fluidly without hardcoded jumps
+  useEffect(() => {
+    if (viewState !== "scanning") return;
+
+    let subTick = 0;
+    const interval = setInterval(() => {
+      setScanProgress((prev) => {
+        const target = targetProgressRef.current;
+        if (prev < target) {
+          const step = target - prev > 10 ? 2 : 1;
+          return Math.min(prev + step, target);
+        }
+        // If caught up to target but scan is still actively running and under 95%:
+        // Gently increment by 1% every 8 ticks (~800ms) to ensure continuous, lifelike momentum
+        subTick++;
+        if (prev < 95 && subTick % 8 === 0) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [viewState]);
 
   const handleAddUrlRow = () => {
     if (urls.length >= 4) return;
@@ -95,18 +122,21 @@ export default function Home() {
 
     // Switch to transition view
     setViewState("scanning");
+    targetProgressRef.current = 18;
     setScanProgress(15);
-    setScanStage("Dispatching 6 inspection workers & cloud ZAP runner...");
-    setScanWorker("Workers 1-6 + ZAP Cloud Runner");
+    setScanStage("Dispatching 6 parallel inspection workers...");
+    setScanWorker("Workers 1-6 & Telemetry Core");
 
     try {
       // Run real parallel scans against backend for all submitted URLs
       const scanPromises = validEntries.map((item) => fetchRealScan(item.formatted, item.domain));
       const results = await Promise.all(scanPromises);
 
+      targetProgressRef.current = 100;
       setScanProgress(100);
       setScanStage("Security synthesis complete!");
       setScanWorker("All 6 Workers & AI Finished");
+      await new Promise((r) => setTimeout(r, 450));
       setScanResults(results);
       setViewState("dashboard");
     } catch (err: any) {
@@ -155,6 +185,7 @@ export default function Home() {
 
       // If cached result is available immediately
       if (postData.status === "completed" && postData.cached) {
+        targetProgressRef.current = 100;
         setScanProgress(100);
         setScanStage("Audit Completed (Verified Cached Intelligence)");
         setScanWorker("All Workers Completed");
@@ -176,17 +207,17 @@ export default function Home() {
         }
       }
 
-      // Poll every 1.2s for completion (up to 75 attempts = 90s to comfortably handle cold starts and multi-tool audits)
-      for (let attempt = 0; attempt < 75; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+      // Poll every 1.1s for completion (up to 80 attempts = ~90s to comfortably handle cold starts and multi-tool audits)
+      for (let attempt = 0; attempt < 80; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1100));
         try {
           const getRes = await fetch(`${API_BASE_URL}/api/scan/${scanId}`);
           if (getRes.ok) {
             const scanData = await getRes.json();
 
-            // Dynamically update real progress, stage, and current worker from backend
+            // Dynamically update target progress, stage, and current worker from backend
             if (typeof scanData.progress === "number") {
-              setScanProgress(scanData.progress);
+              targetProgressRef.current = Math.max(targetProgressRef.current, scanData.progress);
             }
             if (scanData.stage) {
               setScanStage(scanData.stage);
@@ -206,6 +237,7 @@ export default function Home() {
               if (scanData.results_json.domain_unreachable) {
                 throw new Error(scanData.results_json.error || `Domain '${domain}' is unreachable.`);
               }
+              targetProgressRef.current = 100;
               return mapBackendToWebsiteResult(scanData, url, domain);
             }
           }
@@ -777,7 +809,7 @@ export default function Home() {
             </div>
             <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 transition-all duration-700 ease-out"
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 transition-all duration-200 ease-out"
                 style={{ width: `${scanProgress}%` }}
               />
             </div>
