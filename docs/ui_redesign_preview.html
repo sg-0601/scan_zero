@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScanZero UI Redesign Preview — Human-Crafted Aesthetic</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans (Primary UI) + JetBrains Mono (Telemetry/Code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            surface: {
+              base: '#090A0F',     // deepest obsidian background
+              card: '#11131A',     // card background
+              elevated: '#171A24', // elevated panels / dropdowns
+              border: '#1E2330',   // subtle crisp border
+              hover: '#252B3B',    // interactive hover
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #090A0F;
+      color: #E2E8F0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    /* Subtle dot grid pattern common in modern high-end tools (Linear/Vercel) */
+    .bg-grid-pattern {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    /* Precision micro-borders */
+    .card-border {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .card-border:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Glow without rainbow AI neon */
+    .glow-subtle {
+      box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.12);
+    }
+
+    /* Custom sleek scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090A0F;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1E2330;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #2D3748;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-brand-600 selection:text-white">
+
+  <!-- ========================================================================= -->
+  <!-- TOP DESIGN PREVIEW CONTROLLER BAR (Interactive Switcher) -->
+  <!-- ========================================================================= -->
+  <div class="sticky top-0 z-50 bg-[#0D0F17]/90 backdrop-blur-md border-b border-surface-border px-4 py-2.5 flex items-center justify-between text-xs">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span class="font-mono font-semibold text-slate-300">ScanZero Redesign Preview</span>
+      </div>
+      <span class="text-slate-500 hidden sm:inline">|</span>
+      <span class="text-slate-400 hidden sm:inline">Human-Crafted Aesthetic &bull; Plus Jakarta Sans + JetBrains Mono</span>
+    </div>
+
+    <!-- View Switcher Tabs -->
+    <div class="flex items-center gap-1 bg-[#151822] p-1 rounded-lg border border-surface-border">
+      <button onclick="switchView('landing')" id="btn-landing" class="px-3 py-1.5 rounded-md font-medium text-white bg-brand-600 transition-all flex items-center gap-1.5 shadow-sm">
+        <i data-lucide="layout" class="w-3.5 h-3.5"></i>
+        <span>1. Landing Page</span>
+      </button>
+      <button onclick="switchView('dashboard')" id="btn-dashboard" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5">
+        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+        <span>2. Scan Dashboard</span>
+      </button>
+      <button onclick="switchView('comparison')" id="btn-comparison" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        <span>Old AI vs New Human</span>
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 1: REDESIGNED LANDING PAGE & SCANNER CONSOLE -->
+  <!-- ========================================================================= -->
+  <div id="view-landing" class="flex-1 flex flex-col">
+    <!-- Navbar -->
+    <header class="w-full border-b border-surface-border/60 bg-surface-base/80 backdrop-blur-md">
+      <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center font-bold text-white shadow-md shadow-indigo-500/20 font-mono text-sm">
+            0
+          </div>
+          <span class="text-lg font-bold tracking-tight text-white">
+            Scan<span class="text-indigo-400">Zero</span>
+          </span>
+          <span class="hidden md:inline-block px-2 py-0.5 rounded text-[11px] font-mono text-slate-400 bg-surface-elevated border border-surface-border">
+            v2.4 &bull; Gemini 3.8 Core
+          </span>
+        </div>
+
+        <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
+          <a href="#" class="text-white">Scanner</a>
+          <a href="#" class="hover:text-white transition-colors">Surface Intelligence</a>
+          <a href="#" class="hover:text-white transition-colors">Score Breakdown</a>
+          <a href="#" class="hover:text-white transition-colors">API Docs</a>
+        </nav>
+
+        <div class="flex items-center gap-3">
+          <button class="text-xs font-mono text-slate-400 hover:text-white px-3 py-1.5 rounded-md border border-surface-border hover:border-slate-600 transition-colors flex items-center gap-1.5">
+            <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+            <span>CLI Diagnostic</span>
+          </button>
+          <button onclick="switchView('dashboard')" class="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 rounded-md transition-colors shadow-sm">
+            Live Demo
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="relative pt-20 pb-28 px-6 bg-grid-pattern overflow-hidden">
+      <!-- Subtle Ambient Glow -->
+      <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-indigo-600/10 rounded-full blur-[140px] pointer-events-none"></div>
+
+      <div class="max-w-4xl mx-auto text-center relative z-10">
+        <!-- Trust / Scope Pill -->
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-surface-card border border-surface-border text-slate-300 text-xs font-medium mb-8">
+          <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+          <span>Automated External Attack Surface &amp; Web Security Audit</span>
+        </div>
+
+        <!-- Hero Headline -->
+        <h1 class="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-[1.08]">
+          Know your perimeter.<br>
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-slate-100 via-indigo-200 to-indigo-400">
+            Fix it before attackers chain it.
+          </span>
+        </h1>
+
+        <!-- Subtitle -->
+        <p class="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10 font-normal">
+          55+ automated security checks across DNS, TLS, HTTP headers, open ports, and threat intelligence—synthesized into actionable engineering fixes by Google Gemini.
+        </p>
+
+        <!-- Search / URL Input Console (High-end Product Style) -->
+        <div class="max-w-2xl mx-auto bg-surface-card card-border rounded-2xl p-2.5 shadow-2xl glow-subtle transition-all">
+          <form onsubmit="event.preventDefault(); switchView('dashboard');" class="flex flex-col sm:flex-row items-center gap-2">
+            <div class="relative flex-1 w-full flex items-center">
+              <span class="absolute left-4 text-slate-500 font-mono text-sm">https://</span>
+              <input 
+                type="text" 
+                value="cloudflare.com" 
+                placeholder="example.com" 
+                class="w-full bg-transparent text-white font-mono text-sm pl-20 pr-4 py-3.5 outline-none placeholder:text-slate-600 border-none"
+              >
+            </div>
+            
+            <button 
+              type="submit" 
+              class="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm shrink-0"
+            >
+              <i data-lucide="shield" class="w-4 h-4"></i>
+              <span>Audit Domain</span>
+              <kbd class="hidden md:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono text-indigo-200 bg-indigo-700/60 rounded">↵</kbd>
+            </button>
+          </form>
+
+          <!-- Quick Presets -->
+          <div class="mt-2.5 pt-2.5 border-t border-surface-border/70 flex items-center justify-between px-2 text-xs">
+            <span class="text-slate-500 text-[11px] font-mono">Popular Audits:</span>
+            <div class="flex items-center gap-1.5 overflow-x-auto">
+              <button onclick="switchView('dashboard')" class="text-[11px] font-mono text-slate-400 hover:text-white px-2 py-0.5 rounded bg-surface-elevated hover:bg-surface-hover transition-colors">cloudflare.com</button>
+              <button onclick="switchView('dashboard')" class="text-[11px] font-mono text-slate-400 hover:text-white px-2 py-0.5 rounded bg-surface-elevated hover:bg-surface-hover transition-colors">stripe.com</button>
+              <button onclick="switchView('dashboard')" class="text-[11px] font-mono text-slate-400 hover:text-white px-2 py-0.5 rounded bg-surface-elevated hover:bg-surface-hover transition-colors">github.com</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Architecture Flow Metric Bar -->
+        <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 text-left max-w-4xl mx-auto">
+          <div class="bg-surface-card/60 card-border rounded-xl p-4">
+            <div class="text-slate-500 text-xs font-mono mb-1">01 &bull; INGESTION</div>
+            <div class="text-sm font-bold text-white">55+ Parallel Probes</div>
+            <p class="text-xs text-slate-400 mt-1">Shodan, VT, SSLyze, crt.sh, OTX &amp; DAST</p>
+          </div>
+          <div class="bg-surface-card/60 card-border rounded-xl p-4">
+            <div class="text-slate-500 text-xs font-mono mb-1">02 &bull; INTELLIGENCE</div>
+            <div class="text-sm font-bold text-white">Gemini 3.8 Flash</div>
+            <p class="text-xs text-slate-400 mt-1">Cross-vector correlation &amp; noise filtering</p>
+          </div>
+          <div class="bg-surface-card/60 card-border rounded-xl p-4">
+            <div class="text-slate-500 text-xs font-mono mb-1">03 &bull; EXPLOIT PATH</div>
+            <div class="text-sm font-bold text-white">Attack Chain Analysis</div>
+            <p class="text-xs text-slate-400 mt-1">Maps adversary compromise workflows</p>
+          </div>
+          <div class="bg-surface-card/60 card-border rounded-xl p-4">
+            <div class="text-slate-500 text-xs font-mono mb-1">04 &bull; REMEDIATION</div>
+            <div class="text-sm font-bold text-white">1-Click Config Code</div>
+            <p class="text-xs text-slate-400 mt-1">Ready Nginx, Apache, Cloudflare &amp; DNS</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 2: REDESIGNED SCAN DASHBOARD (DATA-RICH, INTENTIONAL & CLEAN) -->
+  <!-- ========================================================================= -->
+  <div id="view-dashboard" class="hidden flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full space-y-6">
+
+    <!-- Top Domain Context Header -->
+    <div class="bg-surface-card card-border rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            AUDIT VERIFIED
+          </span>
+          <span class="text-slate-500 font-mono text-xs">ID: bd0c2d60-5356-4160</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl md:text-3xl font-extrabold text-white font-mono tracking-tight">cloudflare.com</h1>
+          <a href="https://cloudflare.com" target="_blank" class="text-slate-500 hover:text-slate-300 transition-colors">
+            <i data-lucide="external-link" class="w-4 h-4"></i>
+          </a>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-2 font-mono">
+          <span>IP: 104.16.132.229</span>
+          <span>&bull;</span>
+          <span>ASN: AS13335 CLOUDFLARENET</span>
+          <span>&bull;</span>
+          <span class="text-indigo-400 font-semibold">Active WAF: Cloudflare Edge</span>
+          <span>&bull;</span>
+          <span>Scanned: Today at 10:48 AM</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2.5">
+        <button onclick="switchView('landing')" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-elevated hover:bg-surface-hover text-slate-300 border border-surface-border transition-all flex items-center gap-2">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>New Scan</span>
+        </button>
+        <button class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-elevated hover:bg-surface-hover text-slate-300 border border-surface-border transition-all flex items-center gap-2">
+          <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>Executive PDF</span>
+        </button>
+        <button class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all flex items-center gap-2 shadow-sm">
+          <i data-lucide="code" class="w-3.5 h-3.5"></i>
+          <span>Developer JSON</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Gemini AI Executive Intelligence Card (Refined, Editorial, No Neon Gimmicks) -->
+    <div class="bg-gradient-to-br from-[#121522] via-[#0E1019] to-surface-card card-border rounded-2xl p-6 md:p-8 relative overflow-hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+            <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-indigo-300">
+              Google Gemini Security Intelligence Synthesis
+            </h3>
+          </div>
+        </div>
+        <span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-semibold text-slate-300 bg-surface-elevated border border-surface-border">
+          Model: gemini-3.8-flash
+        </span>
+      </div>
+
+      <h2 class="text-xl md:text-2xl font-bold text-white mb-3">
+        Hardened Perimeter Backed by WAF, Requiring Strict Cookie and Surface Governance.
+      </h2>
+
+      <p class="text-slate-300 text-sm md:text-base leading-relaxed mb-6 font-normal">
+        The target domain cloudflare.com exhibits a generally robust security posture anchored by an active Web Application Firewall, modern TLS configuration, and strict DMARC enforcement. However, secondary attack surface vectors remain, including insecure cookie attributes and minor Content-Security-Policy allowances.
+      </p>
+
+      <!-- Attacker Perspective Callout (Clean Editorial Red Line) -->
+      <div class="bg-rose-950/20 border-l-2 border-rose-500 rounded-r-xl p-4 mb-6">
+        <div class="flex items-center gap-2 text-rose-400 font-mono text-xs font-semibold uppercase tracking-wider mb-1">
+          <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+          <span>Threat Actor Exploitation Perspective</span>
+        </div>
+        <p class="text-slate-300 text-xs md:text-sm leading-relaxed">
+          A motivated adversary recognizing a heavily defended edge protected by WAF technology pivots toward client-side attack vectors—such as exploiting cookies lacking secure flags to hijack active sessions or probing forgotten staging endpoints.
+        </p>
+      </div>
+
+      <!-- Strengths vs Critical Risks Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-surface-elevated/70 card-border rounded-xl p-4">
+          <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider font-mono mb-3 flex items-center gap-1.5">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            <span>Confirmed Defense Strengths (4)</span>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-300">
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">&check;</span>
+              <span>Strict DMARC policy with reject enforcement preventing email spoofing</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">&check;</span>
+              <span>Active Cloudflare WAF shielding backend infrastructure from direct exploits</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">&check;</span>
+              <span>Zero active infostealer credential breaches detected in telemetry</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold">&check;</span>
+              <span>Modern TLS 1.3 encryption protocols established without legacy ciphers</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-surface-elevated/70 card-border rounded-xl p-4">
+          <div class="text-xs font-semibold text-amber-400 uppercase tracking-wider font-mono mb-3 flex items-center gap-1.5">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            <span>Priority Posture Deficits (3)</span>
+          </div>
+          <ul class="space-y-2 text-xs text-slate-300">
+            <li class="flex items-start gap-2">
+              <span class="text-amber-400 font-bold">&bull;</span>
+              <span>Cookies lacking Secure and HttpOnly attributes exposing sensitive tokens</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-amber-400 font-bold">&bull;</span>
+              <span>Content-Security-Policy permitting 'unsafe-inline' scripts</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-amber-400 font-bold">&bull;</span>
+              <span>Massive public subdomain attack surface (3,400+) requires continuous governance</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Score & Categories Bento Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Bento 1: Posture Gauge (Clean 88 / Grade A) -->
+      <div class="lg:col-span-4 bg-surface-card card-border rounded-2xl p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-mono uppercase tracking-wider text-slate-400 font-medium">Security Posture Index</span>
+            <span class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">Grade A</span>
+          </div>
+          
+          <div class="flex items-baseline gap-2 my-4">
+            <span class="text-6xl font-black text-white font-mono">88</span>
+            <span class="text-xl text-slate-500 font-mono">/100</span>
+          </div>
+
+          <div class="w-full bg-surface-elevated h-2.5 rounded-full overflow-hidden mb-4">
+            <div class="bg-emerald-400 h-full rounded-full" style="width: 88%"></div>
+          </div>
+
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Perimeter ranks in the <span class="text-white font-semibold">top 8%</span> of surveyed cloud organizations. Hardened transport and mail authentication verified.
+          </p>
+        </div>
+
+        <div class="pt-4 border-t border-surface-border text-xs text-slate-500 font-mono flex items-center justify-between">
+          <span>Benchmarked against 14,200 domains</span>
+          <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+        </div>
+      </div>
+
+      <!-- Bento 2: Category Breakdown with Gemini AI Rationales -->
+      <div class="lg:col-span-8 bg-surface-card card-border rounded-2xl p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-mono uppercase tracking-wider text-slate-400 font-medium">Four-Vector Defense Evaluation</span>
+            <span class="text-xs text-slate-500">Evaluated by 55 Automated Engines</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Set 1 -->
+            <div class="p-3.5 rounded-xl bg-surface-elevated/60 border border-surface-border">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-semibold text-white">TLS &amp; Cryptography</span>
+                <span class="text-xs font-mono font-bold text-emerald-400">96 / 100</span>
+              </div>
+              <div class="w-full bg-surface-base h-1.5 rounded-full overflow-hidden mb-2">
+                <div class="bg-emerald-400 h-full rounded-full" style="width: 96%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-snug">
+                TLS 1.3 negotiated with forward secrecy. Active CA certificate with 180 days validity.
+              </p>
+            </div>
+
+            <!-- Set 2 -->
+            <div class="p-3.5 rounded-xl bg-surface-elevated/60 border border-surface-border">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-semibold text-white">Headers &amp; Client Controls</span>
+                <span class="text-xs font-mono font-bold text-amber-400">76 / 100</span>
+              </div>
+              <div class="w-full bg-surface-base h-1.5 rounded-full overflow-hidden mb-2">
+                <div class="bg-amber-400 h-full rounded-full" style="width: 76%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-snug">
+                Missing HSTS preload parameter; cookies lack Secure/HttpOnly flags on edge responses.
+              </p>
+            </div>
+
+            <!-- Set 3 -->
+            <div class="p-3.5 rounded-xl bg-surface-elevated/60 border border-surface-border">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-semibold text-white">DNS &amp; Email Authentication</span>
+                <span class="text-xs font-mono font-bold text-emerald-400">92 / 100</span>
+              </div>
+              <div class="w-full bg-surface-base h-1.5 rounded-full overflow-hidden mb-2">
+                <div class="bg-emerald-400 h-full rounded-full" style="width: 92%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-snug">
+                Strict DMARC p=reject published. Valid SPF record. DNSSEC signing recommended.
+              </p>
+            </div>
+
+            <!-- Set 4 -->
+            <div class="p-3.5 rounded-xl bg-surface-elevated/60 border border-surface-border">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-semibold text-white">Attack Surface &amp; OSINT</span>
+                <span class="text-xs font-mono font-bold text-emerald-400">88 / 100</span>
+              </div>
+              <div class="w-full bg-surface-base h-1.5 rounded-full overflow-hidden mb-2">
+                <div class="bg-emerald-400 h-full rounded-full" style="width: 88%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-snug">
+                Zero open administrative ports on primary IP. Zero dark web infostealer logs.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-surface-border text-[11px] text-slate-500 font-mono mt-3">
+          Formula: Cryptography (25%) + Headers (30%) + DNS (20%) + Surface (25%)
+        </div>
+      </div>
+    </div>
+
+    <!-- Correlated Attack Chain Scenario (No Neon, Clean Node Progression) -->
+    <div class="bg-surface-card card-border rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="git-merge" class="w-4 h-4 text-indigo-400"></i>
+            <span>Adversary Kill-Chain Synthesis (3 Stages)</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            How individual findings from multiple tools chain together into an exploit trajectory
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Step 1 -->
+        <div class="bg-surface-elevated/50 card-border rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-surface-base text-slate-400 border border-surface-border">STAGE 1</span>
+              <span class="text-[11px] font-mono text-indigo-400">Reconnaissance</span>
+            </div>
+            <h4 class="text-sm font-bold text-white mb-1.5">Perimeter &amp; Subdomain Footprinting</h4>
+            <p class="text-xs text-slate-400 leading-relaxed mb-3">
+              Attacker queries crt.sh and Shodan to map 3,400+ public subdomains, filtering for non-WAF-protected dev/staging endpoints.
+            </p>
+          </div>
+          <div class="pt-2.5 border-t border-surface-border/70 text-[11px] font-mono text-slate-500 flex justify-between">
+            <span>Vector:</span>
+            <span class="text-slate-300">Public CT Logs / OSINT</span>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="bg-surface-elevated/50 card-border rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-surface-base text-slate-400 border border-surface-border">STAGE 2</span>
+              <span class="text-[11px] font-mono text-amber-400">Client-Side Probe</span>
+            </div>
+            <h4 class="text-sm font-bold text-white mb-1.5">Cookie &amp; Script Inspection</h4>
+            <p class="text-xs text-slate-400 leading-relaxed mb-3">
+              Attacker identifies cookies lacking HttpOnly and Secure flags, alongside CSP permitting inline scripts.
+            </p>
+          </div>
+          <div class="pt-2.5 border-t border-surface-border/70 text-[11px] font-mono text-slate-500 flex justify-between">
+            <span>Vector:</span>
+            <span class="text-slate-300">HTTP Response Headers</span>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="bg-surface-elevated/50 card-border rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-surface-base text-slate-400 border border-surface-border">STAGE 3</span>
+              <span class="text-[11px] font-mono text-rose-400">Impact</span>
+            </div>
+            <h4 class="text-sm font-bold text-white mb-1.5">Session Token Exfiltration</h4>
+            <p class="text-xs text-slate-400 leading-relaxed mb-3">
+              Unprotected cookies are accessed via client-side script injection, allowing adversary to hijack authenticated sessions.
+            </p>
+          </div>
+          <div class="pt-2.5 border-t border-surface-border/70 text-[11px] font-mono text-slate-500 flex justify-between">
+            <span>Vector:</span>
+            <span class="text-slate-300">Cross-Site Scripting / Token Theft</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remediation Playbook (Code Snippets with 1-Click Copy) -->
+    <div class="bg-surface-card card-border rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+            <span>Remediation &amp; Hardening Playbook</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Production-ready configuration blocks generated specifically for your infrastructure
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Fix 1: HSTS Preload -->
+        <div class="bg-surface-base card-border rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-white">1. Enforce HSTS Preload</span>
+              <span class="text-[10px] font-mono font-bold text-slate-400 px-2 py-0.5 bg-surface-elevated rounded border border-surface-border">NGINX</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-3 leading-relaxed">
+              Elevates Strict-Transport-Security to 1-year max-age and adds the preload directive.
+            </p>
+            <div class="bg-[#0D0F17] rounded-lg p-3 font-mono text-xs text-indigo-300 border border-surface-border overflow-x-auto">
+              <code>add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;</code>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-surface-border flex items-center justify-between">
+            <span class="text-[11px] font-mono text-slate-500">Target: /etc/nginx/sites-available/</span>
+            <button onclick="copyCode(this, 'add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\" always;')" class="text-xs font-mono text-slate-300 hover:text-white px-2.5 py-1 rounded bg-surface-elevated hover:bg-surface-hover transition-colors flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fix 2: Secure Cookie Flags -->
+        <div class="bg-surface-base card-border rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-white">2. Enforce Secure Cookie Flags</span>
+              <span class="text-[10px] font-mono font-bold text-slate-400 px-2 py-0.5 bg-surface-elevated rounded border border-surface-border">CLOUDFLARE WORKER / EDGE</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-3 leading-relaxed">
+              Injects Secure, HttpOnly, and SameSite=Lax flags on all set-cookie edge response headers.
+            </p>
+            <div class="bg-[#0D0F17] rounded-lg p-3 font-mono text-xs text-indigo-300 border border-surface-border overflow-x-auto">
+              <code>proxy_cookie_flags ~* httponly secure samesite=lax;</code>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-surface-border flex items-center justify-between">
+            <span class="text-[11px] font-mono text-slate-500">Target: Reverse Proxy / Cloudflare Edge</span>
+            <button onclick="copyCode(this, 'proxy_cookie_flags ~* httponly secure samesite=lax;')" class="text-xs font-mono text-slate-300 hover:text-white px-2.5 py-1 rounded bg-surface-elevated hover:bg-surface-hover transition-colors flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Ask Gemini Assistant Panel -->
+    <div class="bg-surface-card card-border rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
+            <i data-lucide="bot" class="w-4 h-4 text-indigo-400"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white">Interactive Security Consultant (Google Gemini)</h3>
+            <p class="text-xs text-slate-400">Ask anything regarding cloudflare.com's attack surface or remediation</p>
+          </div>
+        </div>
+        <span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+          ● Ready
+        </span>
+      </div>
+
+      <!-- Assistant Conversation Sample -->
+      <div class="bg-surface-base card-border rounded-xl p-4 space-y-4 max-h-72 overflow-y-auto mb-3 font-sans text-xs">
+        <div class="flex items-start gap-3">
+          <div class="w-6 h-6 rounded bg-indigo-600/30 text-indigo-300 flex items-center justify-center font-mono text-[10px] shrink-0">AI</div>
+          <div class="bg-surface-elevated card-border rounded-xl p-3 text-slate-300 max-w-2xl leading-relaxed">
+            I've correlated 55 telemetry points for <span class="font-mono text-white font-semibold">cloudflare.com</span>. The primary exposure stems from missing cookie security flags and lack of DNSSEC, despite a strong WAF edge. What would you like to investigate or generate configuration for?
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Prompt Chips -->
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="text-[10px] font-mono text-slate-500 uppercase">Suggested:</span>
+        <button class="text-xs px-2.5 py-1 rounded-lg bg-surface-elevated hover:bg-surface-hover text-slate-300 border border-surface-border transition-colors">
+          Generate complete Cloudflare Transform Rule for cookies
+        </button>
+        <button class="text-xs px-2.5 py-1 rounded-lg bg-surface-elevated hover:bg-surface-hover text-slate-300 border border-surface-border transition-colors">
+          How do I enable DNSSEC on Route53?
+        </button>
+        <button class="text-xs px-2.5 py-1 rounded-lg bg-surface-elevated hover:bg-surface-hover text-slate-300 border border-surface-border transition-colors">
+          Explain why 'unsafe-inline' CSP is dangerous
+        </button>
+      </div>
+
+      <!-- Input box -->
+      <div class="flex items-center gap-2">
+        <input 
+          type="text" 
+          placeholder="Ask a technical security or configuration question..."
+          class="flex-1 bg-surface-base card-border text-white text-xs px-4 py-2.5 rounded-xl outline-none focus:border-indigo-500 font-sans placeholder:text-slate-600"
+        >
+        <button class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 shadow-sm">
+          <span>Send</span>
+          <i data-lucide="send" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 3: OLD AI VS NEW HUMAN-CRAFTED COMPARISON -->
+  <!-- ========================================================================= -->
+  <div id="view-comparison" class="hidden flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full space-y-8">
+    <div class="text-center max-w-3xl mx-auto">
+      <h2 class="text-3xl font-extrabold text-white tracking-tight mb-3">
+        Design Evolution: Eliminating the "AI-Made" Clichés
+      </h2>
+      <p class="text-slate-400 text-sm">
+        See exactly how we stripped away the generic AI template tropes and elevated ScanZero to a world-class, human-designed security intelligence product.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <!-- OLD: AI TROPES -->
+      <div class="bg-surface-card border border-rose-500/30 rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-rose-500/20">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <span class="font-bold text-rose-400 text-sm">Before: The "AI-Made" Aesthetic</span>
+          </div>
+          <span class="text-[11px] font-mono text-rose-400/80">Generic Template Clichés</span>
+        </div>
+
+        <ul class="space-y-3 text-xs text-slate-300">
+          <li class="flex items-start gap-2">
+            <span class="text-rose-400 font-bold">&times;</span>
+            <div>
+              <strong class="text-white">Neon Rainbow Gradients Everywhere:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">Heavy cyan-to-emerald gradient text on every headline and button, giving an artificial crypto/web3 look.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-rose-400 font-bold">&times;</span>
+            <div>
+              <strong class="text-white">Floating Gimmicks &amp; Background Clutter:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">Random shields, globes, and sparkle icons floating and rotating in the background with giant blur circles.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-rose-400 font-bold">&times;</span>
+            <div>
+              <strong class="text-white">Video-Game Naming Conventions:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">"Stage 8B: Forge Your Shield Remediation Engine", "Healing Shield Donut", "AI Accuracy Guard (0% False Positives)".</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-rose-400 font-bold">&times;</span>
+            <div>
+              <strong class="text-white">Un-styled Default Typography:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">Raw system fonts without letter-spacing, line-height balance, or dedicated monospace telemetry fonts.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- NEW: HUMAN-CRAFTED -->
+      <div class="bg-surface-card border border-emerald-500/30 rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-emerald-500/20">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span class="font-bold text-emerald-400 text-sm">After: The Human-Crafted Aesthetic</span>
+          </div>
+          <span class="text-[11px] font-mono text-emerald-400/80">Linear / Stripe / Vercel Grade</span>
+        </div>
+
+        <ul class="space-y-3 text-xs text-slate-300">
+          <li class="flex items-start gap-2">
+            <span class="text-emerald-400 font-bold">&check;</span>
+            <div>
+              <strong class="text-white">Obsidian Slate Palette &amp; Intentional Accents:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">Rich deep dark background (#090A0F) with crisp 1px borders, subtle indigo focal points, and clear semantic colors.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-emerald-400 font-bold">&check;</span>
+            <div>
+              <strong class="text-white">Bespoke Google Fonts Pairing:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5"><span class="font-semibold text-white">Plus Jakarta Sans</span> for confident, authoritative headings and <span class="font-mono text-indigo-300">JetBrains Mono</span> for domains, IPs, and code blocks.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-emerald-400 font-bold">&check;</span>
+            <div>
+              <strong class="text-white">Bento Grid Data Density:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">High-clarity score gauges, category metrics, and 3-stage kill-chain attack scenarios formatted for engineers and CISOs.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-emerald-400 font-bold">&check;</span>
+            <div>
+              <strong class="text-white">Professional Engineering Nomenclature:</strong>
+              <p class="text-slate-400 text-[11px] mt-0.5">"Remediation &amp; Hardening Playbook", "Security Posture Index", "Attack Chain Synthesis".</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="w-full border-t border-surface-border mt-auto py-6 px-6 text-center text-xs text-slate-500 font-mono">
+    <span>ScanZero Security Platform &bull; Human-Crafted Design Preview</span>
+  </footer>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    function switchView(viewName) {
+      document.getElementById('view-landing').classList.add('hidden');
+      document.getElementById('view-dashboard').classList.add('hidden');
+      document.getElementById('view-comparison').classList.add('hidden');
+
+      document.getElementById('btn-landing').className = 'px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+      document.getElementById('btn-dashboard').className = 'px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+      document.getElementById('btn-comparison').className = 'px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5';
+
+      if (viewName === 'landing') {
+        document.getElementById('view-landing').classList.remove('hidden');
+        document.getElementById('btn-landing').className = 'px-3 py-1.5 rounded-md font-medium text-white bg-indigo-600 transition-all flex items-center gap-1.5 shadow-sm';
+      } else if (viewName === 'dashboard') {
+        document.getElementById('view-dashboard').classList.remove('hidden');
+        document.getElementById('btn-dashboard').className = 'px-3 py-1.5 rounded-md font-medium text-white bg-indigo-600 transition-all flex items-center gap-1.5 shadow-sm';
+      } else if (viewName === 'comparison') {
+        document.getElementById('view-comparison').classList.remove('hidden');
+        document.getElementById('btn-comparison').className = 'px-3 py-1.5 rounded-md font-medium text-white bg-indigo-600 transition-all flex items-center gap-1.5 shadow-sm';
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      lucide.createIcons();
+    }
+
+    function copyCode(btn, codeText) {
+      navigator.clipboard.writeText(codeText);
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<span class="text-emerald-400 font-bold">&check; Copied</span>';
+      setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        lucide.createIcons();
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

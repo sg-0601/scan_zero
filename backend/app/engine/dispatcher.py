@@ -212,7 +212,7 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
 
         # Recalculate overall score from the weighted sum of final set_scores
         # to ensure mathematical consistency between displayed overall score and set scores.
-        score = calculate_score(remediated_findings, worker_results, set_scores)
+        score = calculate_score(remediated_findings, worker_results_dict, set_scores)
 
         # Apply Gemini's dynamic critical vulnerability cap if Gemini determined one at scan time
         crit_cap = (gemini_intel.get("contextual_risk_analysis") or {}).get("critical_vulnerability_cap") or {}
