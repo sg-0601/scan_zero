@@ -148,14 +148,57 @@ async def _check_hudson_rock(domain: str) -> dict:
 
 async def _check_crt_sh(domain: str) -> dict:
     start = time.perf_counter()
-    try:
-        headers = {"User-Agent": "ScanZero-HealthCheck"}
-        async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
-            resp = await client.get(f"https://crt.sh/?q={domain}&output=json")
-        latency = int((time.perf_counter() - start) * 1000)
-        return {"status": "operational" if resp.status_code == 200 else "degraded", "latency_ms": latency}
-    except Exception:
-        return {"status": "degraded", "message": "Upstream CT log server latency"}
+    # Avoid testing domains with millions of CT records like cloudflare.com in routine health checks
+    target_domain = domain if domain and domain != "cloudflare.com" else "scan-zero.com"
+    headers = {"User-Agent": "ScanZero-HealthCheck"}
+    
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
+                resp = await client.get(f"https://crt.sh/?q={target_domain}&output=json")
+            latency = int((time.perf_counter() - start) * 1000)
+            if resp.status_code == 200:
+                return {
+                    "status": "operational",
+                    "latency_ms": latency,
+                    "target_domain": target_domain,
+                    "attempt": attempt + 1
+                }
+            elif resp.status_code in (429, 500, 502, 503, 504) and attempt == 0:
+                await asyncio.sleep(1.0)
+                continue
+            else:
+                return {
+                    "status": "degraded",
+                    "http_status": resp.status_code,
+                    "latency_ms": latency,
+                    "target_domain": target_domain,
+                    "message": f"HTTP {resp.status_code} from upstream CT log server"
+                }
+        except httpx.TimeoutException as e:
+            latency = int((time.perf_counter() - start) * 1000)
+            if attempt == 0:
+                await asyncio.sleep(1.0)
+                continue
+            return {
+                "status": "degraded",
+                "latency_ms": latency,
+                "target_domain": target_domain,
+                "error_type": type(e).__name__,
+                "message": f"Timeout after {latency}ms (upstream CT log server latency)"
+            }
+        except Exception as e:
+            latency = int((time.perf_counter() - start) * 1000)
+            if attempt == 0:
+                await asyncio.sleep(1.0)
+                continue
+            return {
+                "status": "degraded",
+                "latency_ms": latency,
+                "target_domain": target_domain,
+                "error_type": type(e).__name__,
+                "message": str(e)
+            }
 
 
 async def _check_cisa_kev() -> dict:

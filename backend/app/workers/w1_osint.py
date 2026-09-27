@@ -164,23 +164,61 @@ class OsintWorker(BaseWorker):
     # Engine 1: Subdomain Enumeration (crt.sh - Zero Key)
     # =========================================================================
     async def subdomain_enum(self, domain: str) -> list:
-        """Query Certificate Transparency logs for public subdomains."""
+        """Query Certificate Transparency logs for public subdomains with retry and fallback."""
+        subdomains = set()
+
+        # 1. Primary: crt.sh (with 1 retry on 5xx/429/timeout, 15s timeout)
+        for attempt in range(2):
+            try:
+                headers = {"User-Agent": "ScanZero-OSINT"}
+                async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
+                    resp = await client.get(f"https://crt.sh/?q=%.{domain}&output=json")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for entry in data:
+                            name = entry.get("name_value", "")
+                            for sub in name.split("\n"):
+                                sub = sub.strip().lower()
+                                if sub and "*" not in sub and domain in sub:
+                                    subdomains.add(sub)
+                        if subdomains:
+                            return sorted(list(subdomains))
+                    elif resp.status_code in (429, 500, 502, 503, 504) and attempt == 0:
+                        logger.debug(f"crt.sh returned HTTP {resp.status_code}, retrying in 1s...")
+                        await asyncio.sleep(1.0)
+                        continue
+            except (httpx.TimeoutException, httpx.RequestError) as e:
+                logger.debug(f"crt.sh attempt {attempt+1} failed ({type(e).__name__}): {e}")
+                if attempt == 0:
+                    await asyncio.sleep(1.0)
+                    continue
+            except Exception as e:
+                logger.debug(f"crt.sh unexpected error: {e}")
+                break
+
+        # 2. Secondary Zero-Key Fallback: CertSpotter public CT log API
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.get(f"https://crt.sh/?q=%.{domain}&output=json")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    subdomains = set()
-                    for entry in data:
-                        name = entry.get("name_value", "")
-                        for sub in name.split("\n"):
-                            sub = sub.strip().lower()
-                            if sub and "*" not in sub and domain in sub:
-                                subdomains.add(sub)
-                    return sorted(list(subdomains))
-        except Exception as e:
-            logger.debug(f"crt.sh lookup skipped: {e}")
-        return []
+            logger.debug(f"crt.sh unavailable for {domain}, querying CertSpotter CT fallback...")
+            headers = {"User-Agent": "ScanZero-OSINT"}
+            async with httpx.AsyncClient(headers=headers, timeout=8.0) as client:
+                cs_resp = await client.get(
+                    f"https://api.certspotter.com/v1/issuances?domain={domain}&include_subdomains=true&expand=dns_names"
+                )
+                if cs_resp.status_code == 200:
+                    cs_data = cs_resp.json()
+                    for item in cs_data:
+                        for d in item.get("dns_names", []):
+                            d = d.strip().lower()
+                            if d and "*" not in d and domain in d:
+                                subdomains.add(d)
+                    if subdomains:
+                        logger.info(f"CertSpotter fallback successfully recovered {len(subdomains)} subdomains for {domain}")
+                        return sorted(list(subdomains))
+        except Exception as cs_err:
+            logger.debug(f"CertSpotter fallback skipped: {cs_err}")
+
+        # 3. Graceful partial result: return any discovered subdomains or empty list
+        return sorted(list(subdomains))
 
     # =========================================================================
     # Engine 2: Shodan & InternetDB (Authenticated + Zero Key Fallback)
