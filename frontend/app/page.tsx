@@ -130,7 +130,7 @@ export default function Home() {
       const postRes = await fetch(`${API_BASE_URL}/api/scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, force: true }),
+        body: JSON.stringify({ url, force: false }),
       });
 
       if (!postRes.ok) {

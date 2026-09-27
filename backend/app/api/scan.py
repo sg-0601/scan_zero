@@ -11,7 +11,8 @@ from app.models.database import AsyncSessionLocal
 from app.models.scan import ScanResult
 from app.models.memory_store import MEMORY_SCANS
 from app.utils.url_validator import validate_url
-from app.engine.cache import get_cached_scan, set_cached_scan
+from app.engine.cache import get_cached_scan, set_cached_scan, IN_MEMORY_CACHE
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,64 @@ async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     domain = val_res["domain"]
     url = val_res["url"]
     
-    # Check cache if not forcing fresh scan
+    # Check cache and shared database if not forcing fresh scan
     if not request.force:
+        # 1a. Fast check: Redis / local memory cache
         cached = await get_cached_scan(domain)
-        if cached:
-            return {"scan_id": cached.get("scan_id"), "status": "completed", "cached": True}
+        if cached and cached.get("scan_id"):
+            c_scan_id = str(cached.get("scan_id"))
+            if c_scan_id not in MEMORY_SCANS:
+                MEMORY_SCANS[c_scan_id] = {
+                    "id": c_scan_id,
+                    "target_url": cached.get("url") or url,
+                    "domain": domain,
+                    "status": "completed",
+                    "progress": 100,
+                    "stage": "Audit Completed (Verified Cached Intelligence)",
+                    "current_worker": "All Workers Completed",
+                    "score": cached.get("score"),
+                    "grade": cached.get("grade"),
+                    "results_json": cached,
+                    "created_at": cached.get("completed_at") or datetime.utcnow().isoformat(),
+                    "completed_at": cached.get("completed_at") or datetime.utcnow().isoformat(),
+                }
+            return {"scan_id": c_scan_id, "status": "completed", "cached": True}
+
+        # 1b. Shared Database check (PostgreSQL): ensures different computers, laptops, and mobiles
+        # retrieve the exact same completed scan if this domain was already audited within the TTL.
+        try:
+            async with AsyncSessionLocal() as session:
+                stmt = (
+                    select(ScanResult)
+                    .where(ScanResult.domain == domain, ScanResult.status == "completed")
+                    .order_by(ScanResult.completed_at.desc())
+                )
+                db_res = await session.execute(stmt)
+                db_scan = db_res.scalars().first()
+                if db_scan and db_scan.results_json and db_scan.completed_at:
+                    ttl_seconds = getattr(settings, "CACHE_TTL_HOURS", 24) * 3600
+                    age_seconds = (datetime.utcnow() - db_scan.completed_at).total_seconds()
+                    if age_seconds < ttl_seconds:
+                        scan_id_str = str(db_scan.id)
+                        # Sync to memory store and Redis for fast subsequent polling
+                        MEMORY_SCANS[scan_id_str] = {
+                            "id": scan_id_str,
+                            "target_url": db_scan.target_url or url,
+                            "domain": domain,
+                            "status": "completed",
+                            "progress": 100,
+                            "stage": "Audit Completed (Verified Cached Intelligence)",
+                            "current_worker": "All Workers Completed",
+                            "score": db_scan.score,
+                            "grade": db_scan.grade,
+                            "results_json": db_scan.results_json,
+                            "created_at": db_scan.created_at.isoformat() if db_scan.created_at else datetime.utcnow().isoformat(),
+                            "completed_at": db_scan.completed_at.isoformat() if db_scan.completed_at else datetime.utcnow().isoformat(),
+                        }
+                        await set_cached_scan(domain, db_scan.results_json)
+                        return {"scan_id": scan_id_str, "status": "completed", "cached": True}
+        except Exception as db_err:
+            logger.debug(f"Shared DB cache check skipped: {db_err}")
         
     scan_id = uuid.uuid4()
     scan_id_str = str(scan_id)
@@ -137,6 +191,23 @@ async def get_scan(scan_id: str):
         scan_data["progress"] = mem.get("progress", 100 if scan_data.get("status") == "completed" else 50)
         scan_data["stage"] = mem.get("stage", "Processing scan results...")
         scan_data["current_worker"] = mem.get("current_worker", "Analysis Engine")
+
+    if not scan_data:
+        for d, entry in list(IN_MEMORY_CACHE.items()):
+            c_data = entry.get("data") if isinstance(entry, dict) and "data" in entry else entry
+            if isinstance(c_data, dict) and str(c_data.get("scan_id")) == str(scan_id):
+                scan_data = {
+                    "id": str(scan_id),
+                    "status": "completed",
+                    "progress": 100,
+                    "stage": "Audit Completed (Verified Cached Intelligence)",
+                    "current_worker": "All Workers Completed",
+                    "domain": d,
+                    "score": c_data.get("score"),
+                    "grade": c_data.get("grade"),
+                    "results_json": c_data,
+                }
+                break
 
     if not scan_data:
         raise HTTPException(status_code=404, detail="Scan not found")
