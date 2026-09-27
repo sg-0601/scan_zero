@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { API_BASE_URL } from "@/lib/config";
+import { downloadSecurityReport } from "@/lib/reportGenerator";
 import {
   Shield,
   CheckCircle2,
@@ -153,6 +154,7 @@ export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashbo
   const [activeSection, setActiveSection] = useState<string>("overall");
   const [selectedSiteIndex, setSelectedSiteIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadNotification, setDownloadNotification] = useState<string | null>(null);
   const [selectedServerTab, setSelectedServerTab] = useState<"nginx" | "apache" | "cloudflare" | "caddy">("nginx");
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
@@ -343,10 +345,26 @@ async function handleRequest(request) {
 
   const handleDownloadReport = () => {
     setIsDownloading(true);
-    setTimeout(() => {
-      window.print();
-      setIsDownloading(false);
-    }, 150);
+    try {
+      downloadSecurityReport(siteResults, isComparison, selectedSiteIndex);
+      setDownloadNotification(
+        isComparison
+          ? "Multi-Site Comparison Report generated and downloaded!"
+          : `${currentSite.domain} Security Audit Report downloaded!`
+      );
+      setTimeout(() => setDownloadNotification(null), 4500);
+    } catch (err) {
+      console.error("Report generation error:", err);
+      try {
+        window.print();
+      } catch (e) {
+        // ignore
+      }
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+      }, 700);
+    }
   };
 
   const navItems = [
@@ -500,10 +518,17 @@ async function handleRequest(request) {
           </button>
           <button
             onClick={handleDownloadReport}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-extrabold shadow-md shadow-teal-500/10 transition-all active:scale-[0.98]"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-extrabold shadow-md shadow-teal-500/10 transition-all active:scale-[0.98] shrink-0"
+            title={isComparison ? "Download Full Comparison Report" : "Download Security Audit Report"}
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{isDownloading ? "Generating PDF..." : "Download Report"}</span>
+            <span>
+              {isDownloading
+                ? "Generating..."
+                : isComparison
+                ? "Download Comparison"
+                : "Download Report"}
+            </span>
           </button>
         </div>
       </div>
@@ -2171,7 +2196,13 @@ async function handleRequest(request) {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-cyan-400 text-gray-900 text-xs font-bold transition-all shadow-lg active:scale-[0.98]"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download PDF Report</span>
+                  <span>
+                    {isDownloading
+                      ? "Generating Report..."
+                      : isComparison
+                      ? "Download Full Comparison Report"
+                      : "Download Security Audit Report"}
+                  </span>
                 </button>
               </div>
 
@@ -2387,6 +2418,19 @@ async function handleRequest(request) {
           </div>
         </aside>
       </div>
+
+      {/* Floating Download Success Toast */}
+      {downloadNotification && (
+        <div className="fixed bottom-5 right-5 z-50 bg-gray-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-teal-500/40 text-xs animate-in fade-in slide-in-from-bottom-3">
+          <div className="w-6 h-6 rounded-full bg-teal-500 text-gray-900 flex items-center justify-center font-bold text-xs shrink-0">
+            ✓
+          </div>
+          <div>
+            <div className="font-bold text-teal-300">Report Ready</div>
+            <div className="text-gray-300 text-[11px]">{downloadNotification}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
