@@ -55,10 +55,14 @@ export default function Home() {
     }
     try {
       const parsed = new URL(cleaned);
-      if (!parsed.hostname || !parsed.hostname.includes(".")) {
+      let domain = parsed.hostname.toLowerCase();
+      if (domain.startsWith("www.") && domain !== "www.com") {
+        domain = domain.slice(4);
+      }
+      if (!domain || !domain.includes(".")) {
         return { valid: false, formatted: "", domain: "" };
       }
-      return { valid: true, formatted: cleaned, domain: parsed.hostname };
+      return { valid: true, formatted: `https://${domain}`, domain };
     } catch {
       return { valid: false, formatted: "", domain: "" };
     }
