@@ -279,6 +279,39 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
     scoring_breakdown = generate_scoring_breakdown(domain, raw_findings, set_scores)
     worker_intelligence_stream = generate_worker_intelligence_stream(set_scores, tool_outputs)
 
+    # Dynamic Critical Vulnerability Cap evaluation (context-driven, no static <= 55)
+    has_crit = any(
+        f.get("severity") == "critical" or
+        any(term in f.get("title", "").lower() for term in [".env", ".git", "remote code execution", "rce", "database exposed"])
+        for f in raw_findings
+    )
+    waf_detected = tool_outputs.get("waf", {}).get("waf_detected", False)
+    waf_name = tool_outputs.get("waf", {}).get("waf_name", "WAF")
+    crit_proofs = [
+        f"{f.get('title')}: {f.get('description', 'Detected during active probe')}"
+        for f in raw_findings
+        if f.get("severity") == "critical" or any(t in f.get("title", "").lower() for t in [".env", ".git", "rce", "database exposed"])
+    ]
+    crit_cap_fallback = {
+        "is_capped": has_crit,
+        "cap_range": "45-60" if (has_crit and waf_detected) else ("30-45" if has_crit else None),
+        "max_allowed_score": 60 if (has_crit and waf_detected) else (45 if has_crit else None),
+        "reason": (
+            f"Active critical exposure identified. However, edge {waf_name} compensates by mitigating direct exploit payloads; dynamic ceiling range set to 45-60."
+            if (has_crit and waf_detected) else (
+                "Critical unmitigated vulnerability identified without compensating edge protection; dynamic ceiling range set to 30-45."
+                if has_crit else
+                "No critical vulnerabilities detected warranting an overall score cap."
+            )
+        ),
+        "proofs": crit_proofs
+    }
+    if crit_cap_fallback["is_capped"] and crit_cap_fallback["max_allowed_score"] and score > crit_cap_fallback["max_allowed_score"]:
+        score = crit_cap_fallback["max_allowed_score"]
+        grade = assign_grade(score)
+        if "set5" in set_scores and set_scores["set5"] > 40:
+            set_scores["set5"] = 35
+
     return {
         "ai_powered": False,
         "gemini_model_used": "AI Security Core",
@@ -405,6 +438,7 @@ def generate_fallback_intelligence(domain: str, url: str, tool_outputs: Dict[str
             ]
         },
         "contextual_risk_analysis": {
+            "critical_vulnerability_cap": crit_cap_fallback,
             "compensating_controls_detected": [
                 c for c in [
                     f"Web Application Firewall ({tool_outputs.get('waf', {}).get('waf_name', 'Active')}) Active" if tool_outputs.get('waf', {}).get('waf_detected') else None,
@@ -500,7 +534,18 @@ EXAMPLE: If a website is missing X-Frame-Options header (normally -10 penalty) B
 
 THIS IS CRITICAL: Two websites with the SAME vulnerability MUST get DIFFERENT scores if one has compensating controls and the other does not. This ensures 100% fair and true scoring.
 
-6. CRITICAL VULNERABILITY SAFETY CAP: If ANY critical exposure exists (such as public .env, .git, exposed DB passwords, or active RCE), your "ai_score" MUST NOT exceed 55 (Grade D or F) regardless of how hardened the domain's TLS or headers are. A site with leaked secrets cannot receive an A or B grade.
+6. AUTONOMOUS CRITICAL VULNERABILITY CAP & DYNAMIC RANGE DETERMINATION:
+Do NOT follow any static or arbitrary limit (such as <= 55). You are the autonomous security authority and determine caps dynamically per scan:
+- When you audit the target, analyze whether any vulnerability (e.g. exposed environment files, Git repository leak, active RCE, unprotected database port, critical CVE) is severe enough to warrant capping the overall score.
+- Evaluate the REAL threat context: Are secrets live or dummy? Is there a WAF/CDN blocking exploit payloads? Is the port exposed to the open internet or firewalled?
+- If a Critical Vulnerability Cap is warranted, you must AUTOMATICALLY set an appropriate dynamic score cap range (e.g., '15-30' for unauthenticated RCE or root database leak; '35-50' for sensitive .env without WAF; '50-65' for directory listing with non-credential config files) at that moment.
+- You MUST explicitly provide:
+  (a) "is_capped": true
+  (b) "cap_range": string representing the dynamic range you decided (e.g., "35-50")
+  (c) "max_allowed_score": integer upper bound of your decided range (e.g., 50)
+  (d) "reason": clear, authoritative explanation of why this specific cap and range were established
+  (e) "proofs": array of concrete telemetry evidence and valid proofs (e.g., "HTTP GET /.env returned 200 OK disclosing AWS_SECRET_ACCESS_KEY", "Port 3306 MySQL open to 0.0.0.0/0 with no IP restriction", "WAFW00F detected 0 active WAF filters for payload mitigation")
+- If no critical vulnerability warrants a cap, set "is_capped": false, "cap_range": null, "max_allowed_score": null, and state why in reason.
 
 7. ENTERPRISE SUBDOMAIN FAIRNESS: Large enterprise domains (Google, Microsoft, Amazon, etc.) naturally maintain hundreds of subdomains. Do NOT penalize a domain simply for having >50 subdomains unless those subdomains expose sensitive unpartitioned environments (e.g., dev.*, staging.*, test.*, vpn.*, internal.*).
 
@@ -575,6 +620,13 @@ Return a STRICT, VALID JSON object with the following schema:
     "set6": 0 to 100 integer (Set 6: Deception & Honeypot Posture — adjusted for compensating controls)
   }},
   "contextual_risk_analysis": {{
+    "critical_vulnerability_cap": {{
+      "is_capped": boolean (true if a severe unmitigated vulnerability warrants capping the overall score, false otherwise),
+      "cap_range": "dynamic ceiling range decided at scan time (e.g. '30-45' or '45-60') or null if not capped",
+      "max_allowed_score": integer upper bound of decided range (e.g. 45 or 60) or null if not capped,
+      "reason": "Clear explanation of why this specific cap and range were established based on live exploitability",
+      "proofs": ["Valid telemetry evidence proof 1 (e.g. exact path, exposed secrets, port number)", "Valid telemetry evidence proof 2"]
+    }},
     "compensating_controls_detected": ["List of ALL compensating controls found across all sets (e.g. 'Cloudflare WAF active', 'Strict CSP with frame-ancestors', 'HSTS preload enabled')"],
     "risk_adjustments": [
       {{
@@ -1007,6 +1059,12 @@ IMPORTANT: Return ONLY the raw JSON object. Do not include markdown preamble or 
     if not context_risk or not isinstance(context_risk, dict) or not context_risk.get("risk_adjustments"):
         fb_intel = generate_fallback_intelligence(domain, url, worker_results, raw_findings)
         parsed_json["contextual_risk_analysis"] = fb_intel.get("contextual_risk_analysis")
+    else:
+        # Ensure critical_vulnerability_cap is present inside contextual_risk_analysis
+        if "critical_vulnerability_cap" not in context_risk or not isinstance(context_risk.get("critical_vulnerability_cap"), dict):
+            fb_intel = generate_fallback_intelligence(domain, url, worker_results, raw_findings)
+            fb_cap = fb_intel.get("contextual_risk_analysis", {}).get("critical_vulnerability_cap")
+            context_risk["critical_vulnerability_cap"] = fb_cap
 
     parsed_json["ai_powered"] = True
     parsed_json["gemini_model_used"] = "AI Security Core"

@@ -212,9 +212,19 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
 
         # Recalculate overall score from the weighted sum of final set_scores
         # to ensure mathematical consistency between displayed overall score and set scores.
-        # Critical vulnerability scoring is handled by Gemini's contextual risk analysis
-        # which adjusts individual set scores based on actual exploitability.
         score = calculate_score(remediated_findings, worker_results, set_scores)
+
+        # Apply Gemini's dynamic critical vulnerability cap if Gemini determined one at scan time
+        crit_cap = (gemini_intel.get("contextual_risk_analysis") or {}).get("critical_vulnerability_cap") or {}
+        if crit_cap.get("is_capped") and crit_cap.get("max_allowed_score") is not None:
+            try:
+                dynamic_max = int(crit_cap["max_allowed_score"])
+                if score > dynamic_max:
+                    logger.info(f"Applying Gemini dynamic critical vulnerability cap for {domain}: {score} -> {dynamic_max} (Range: {crit_cap.get('cap_range')}, Reason: {crit_cap.get('reason')})")
+                    score = dynamic_max
+            except (ValueError, TypeError):
+                pass
+
         grade = assign_grade(score)
 
         # Adopt Gemini's full 6-set detailed analysis while ensuring verified cert/endpoint telemetry is preserved

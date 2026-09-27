@@ -88,6 +88,13 @@ export interface WebsiteResult {
   crossSetVisualMatrix?: Record<string, any>;
   cross_set_visual_matrix?: Record<string, any>;
   contextualRiskAnalysis?: {
+    critical_vulnerability_cap?: {
+      is_capped: boolean;
+      cap_range?: string | null;
+      max_allowed_score?: number | null;
+      reason: string;
+      proofs: string[];
+    };
     compensating_controls_detected?: string[];
     risk_adjustments?: Array<{
       finding: string;
@@ -1938,6 +1945,45 @@ async function handleRequest(request) {
                     <p className="text-xs text-gray-600">
                       AI analyzed all vulnerabilities holistically across all 6 sets and detected compensating controls that adjust risk scores. Two sites with the same vulnerability will score differently if one has compensating defenses.
                     </p>
+
+                    {/* Dynamic Critical Vulnerability Cap (determined autonomously by AI at scan time) */}
+                    {currentSite.contextualRiskAnalysis.critical_vulnerability_cap && currentSite.contextualRiskAnalysis.critical_vulnerability_cap.is_capped && (
+                      <div className="bg-rose-50/90 border border-rose-200 rounded-xl p-4 space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span className="font-black text-rose-900 text-xs uppercase tracking-wide">
+                              Dynamic Critical Vulnerability Cap Active
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.cap_range && (
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-200/80 text-rose-800 border border-rose-300">
+                                Range: {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.cap_range}
+                              </span>
+                            )}
+                            {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.max_allowed_score !== undefined && currentSite.contextualRiskAnalysis.critical_vulnerability_cap.max_allowed_score !== null && (
+                              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-rose-600 text-white">
+                                Max Ceiling: {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.max_allowed_score}/100
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-rose-900 leading-relaxed">
+                          <span className="font-bold text-rose-950">Cap Rationale:</span> {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.reason}
+                        </p>
+                        {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.proofs && currentSite.contextualRiskAnalysis.critical_vulnerability_cap.proofs.length > 0 && (
+                          <div className="space-y-1 pt-1.5 border-t border-rose-200">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700">Verified Evidence & Proofs:</span>
+                            <ul className="text-[11px] text-rose-900 space-y-1 list-disc list-inside">
+                              {currentSite.contextualRiskAnalysis.critical_vulnerability_cap.proofs.map((proof: string, pIdx: number) => (
+                                <li key={pIdx} className="font-mono">{proof}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Detected Compensating Controls */}
                     {currentSite.contextualRiskAnalysis.compensating_controls_detected && currentSite.contextualRiskAnalysis.compensating_controls_detected.length > 0 && (
