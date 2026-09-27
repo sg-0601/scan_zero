@@ -434,9 +434,6 @@ async def zap_callback(payload: dict):
     final_hardening = r_json.get("server_hardening", {})
 
     if gemini_intel:
-        if gemini_intel.get("ai_score") is not None:
-            final_score = int(gemini_intel["ai_score"])
-            final_grade = gemini_intel.get("ai_grade") or assign_grade(final_score)
         final_status_text = gemini_intel.get("threat_verdict") or final_status_text
         final_strengths = gemini_intel.get("strengths") or final_strengths
         final_critical = gemini_intel.get("critical_risks") or final_critical
@@ -449,6 +446,18 @@ async def zap_callback(payload: dict):
             for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
                 if k in g_set_scores:
                     final_set_scores[k] = int(g_set_scores[k])
+
+        # Always compute overall score strictly from the 6-set weighted formula
+        final_score = round(
+            (final_set_scores.get("set1", 100) * 0.25) +
+            (final_set_scores.get("set2", 100) * 0.30) +
+            (final_set_scores.get("set3", 100) * 0.20) +
+            (final_set_scores.get("set4", 100) * 0.15) +
+            (final_set_scores.get("set5", 100) * 0.05) +
+            (final_set_scores.get("set6", 100) * 0.05),
+            1
+        )
+        final_grade = assign_grade(final_score)
 
         g_detailed = gemini_intel.get("detailed_sets", {})
         if isinstance(g_detailed, dict) and g_detailed:

@@ -652,6 +652,10 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
 
     zap_meta = dast_raw.get("zap", {})
     zap_completed = bool(zap_findings_list or zap_meta.get("status") == "completed")
+    zap_high = [z for z in zap_findings_list if str(z.get("risk", "")).lower() in ("high", "critical")]
+    zap_med = [z for z in zap_findings_list if str(z.get("risk", "")).lower() in ("medium", "moderate")]
+    zap_low = [z for z in zap_findings_list if str(z.get("risk", "")).lower() in ("low", "info", "informational")]
+
     if zap_completed:
         zap_status = "Complete (GitHub Actions 7GB Runner)"
         zap_count = len(zap_findings_list)
@@ -826,8 +830,12 @@ def generate_detailed_sets(domain: str, worker_results: dict, set_scores: dict, 
         },
         {
             "item": "OWASP ZAP Cloud Dynamic Analysis",
-            "status": ("PASS" if zap_count == 0 else "FAIL") if zap_completed else "WARN",
-            "details": ("OWASP ZAP baseline audit verified 0 dynamic vulnerabilities." if zap_count == 0 else f"OWASP ZAP detected {zap_count} dynamic vulnerability alerts on host.") if zap_completed else "OWASP ZAP 7GB cloud runner actively probing dynamic attack surface."
+            "status": "FAIL" if zap_high else ("WARN" if (zap_med or (not zap_completed and zap_count > 0)) else "PASS"),
+            "details": (f"OWASP ZAP detected {len(zap_high)} high-priority vulnerabilities on host." if zap_high else (
+                f"OWASP ZAP baseline audit completed with {len(zap_med) + len(zap_low)} low/medium notices. Zero critical exploits." if zap_findings_list else (
+                    "OWASP ZAP baseline audit verified 0 dynamic vulnerabilities." if zap_completed else "OWASP ZAP cloud baseline dynamic runner active."
+                )
+            ))
         },
         {
             "item": "Diagnostic Endpoints & Backups",
