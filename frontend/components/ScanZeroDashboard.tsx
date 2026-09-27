@@ -1920,7 +1920,7 @@ async function handleRequest(request) {
                 {/* Scoring Formula Card */}
                 <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="text-xs font-mono text-gray-600">
-                    <span className="text-teal-600 font-bold">Standard Formula:</span> (Crypto &times; 0.25) + (Headers &times; 0.30) + (DNS &times; 0.20) + (Surface &times; 0.25)
+                    <span className="text-teal-600 font-bold">Weighted Formula:</span> (Crypto &times; 0.25) + (Headers &times; 0.30) + (DNS &times; 0.20) + (Surface &times; 0.15) + (DAST &times; 0.05) + (Deception &times; 0.05)
                   </div>
                   <div className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-200">
                     Final Score: {currentSite.overallScore}/100

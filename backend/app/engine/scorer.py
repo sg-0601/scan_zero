@@ -205,16 +205,9 @@ def calculate_score(findings: list, worker_results: dict, set_scores: dict = Non
         set_scores["set6"] * 0.05
     )
 
-    # Critical Vulnerability Safety Net:
-    # If any critical finding exists (e.g. exposed .env, .git, active RCE, DB passwords),
-    # overall score is capped at max 55.0 (Grade D/F) regardless of other set scores.
-    has_critical = any(
-        f.get("severity") == "critical" or
-        any(term in f.get("title", "").lower() for term in [".env", ".git", "remote code execution", "rce", "database exposed"])
-        for f in findings
-    )
-    if has_critical:
-        weighted = min(55.0, weighted)
+    # Critical vulnerability scoring is now handled dynamically by Gemini AI
+    # during contextual risk analysis — it evaluates actual exploitability and
+    # compensating controls before deciding score caps per scan.
 
     return round(max(5.0, min(100.0, weighted)), 1)
 

@@ -686,6 +686,28 @@ export default function Home() {
         evidence: `Set 4 Score: ${setScores.set4}/100`,
         improvement: "Audit and decommission unused subdomains.",
       },
+      {
+        category: "Set 5: DAST & Exposure",
+        earned: Math.round(setScores.set5 * 0.05),
+        max: 5,
+        reasonEarned: "Sensitive diagnostic and configuration paths verified secure.",
+        reasonDeducted: setScores.set5 < 100 ? "Publicly accessible sensitive files or dynamic vulnerabilities detected." : "Full points awarded.",
+        detectedIssue: setScores.set5 < 100 ? "Configuration file exposure" : "None",
+        severity: (setScores.set5 < 70 ? "Critical" : "Clean") as "Critical" | "Clean",
+        evidence: `Set 5 Score: ${setScores.set5}/100`,
+        improvement: "Block web access to hidden files (.env, .git) and address OWASP ZAP alerts.",
+      },
+      {
+        category: "Set 6: Deception Posture",
+        earned: Math.round(setScores.set6 * 0.05),
+        max: 5,
+        reasonEarned: "Authentic production host behavior confirmed via canary probe analysis.",
+        reasonDeducted: setScores.set6 < 100 ? "Host returned anomalous 200 OK for canary probes." : "Full points awarded.",
+        detectedIssue: setScores.set6 < 100 ? "Deception profile" : "None",
+        severity: "Clean" as "Clean",
+        evidence: `Set 6 Score: ${setScores.set6}/100`,
+        improvement: "Ensure web server returns standard HTTP 404 for undefined routes.",
+      },
     ];
   }
 

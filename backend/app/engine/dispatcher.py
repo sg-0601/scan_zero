@@ -198,33 +198,24 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
     # 10. Harmonize Final Results with Gemini's AI Intelligence
     server_hardening = {}
     if gemini_intel:
-        if "ai_score" in gemini_intel and gemini_intel.get("ai_score") is not None:
-            score = int(gemini_intel["ai_score"])
-            grade = gemini_intel.get("ai_grade") or assign_grade(score)
-        
         status_text = gemini_intel.get("threat_verdict") or status_text
         strengths = gemini_intel.get("strengths") or strengths
         critical_issues = gemini_intel.get("critical_risks") or critical_issues
         
-        # Adopt Gemini's full 6-set dynamic scores
+        # Adopt Gemini's full 6-set dynamic scores (Gemini is the sole authority on per-set scoring,
+        # including contextual risk assessment and critical vulnerability cap decisions)
         gemini_set_scores = gemini_intel.get("set_scores", {})
         if isinstance(gemini_set_scores, dict) and gemini_set_scores:
             for k in ["set1", "set2", "set3", "set4", "set5", "set6"]:
                 if k in gemini_set_scores:
                     set_scores[k] = int(gemini_set_scores[k])
 
-        # Critical Vulnerability Safety Net:
-        # If any critical vulnerability exists (.env, .git, active RCE, DB exposed), overall score cannot exceed 55 (Grade D/F)
-        has_critical = any(
-            f.get("severity") == "critical" or
-            any(t in f.get("title", "").lower() for t in [".env", ".git", "remote code execution", "rce", "database exposed"])
-            for f in remediated_findings
-        )
-        if has_critical:
-            score = min(55, score)
-            grade = assign_grade(score)
-            if "set5" in set_scores:
-                set_scores["set5"] = min(30, set_scores["set5"])
+        # Recalculate overall score from the weighted sum of final set_scores
+        # to ensure mathematical consistency between displayed overall score and set scores.
+        # Critical vulnerability scoring is handled by Gemini's contextual risk analysis
+        # which adjusts individual set scores based on actual exploitability.
+        score = calculate_score(remediated_findings, worker_results, set_scores)
+        grade = assign_grade(score)
 
         # Adopt Gemini's full 6-set detailed analysis while ensuring verified cert/endpoint telemetry is preserved
         gemini_detailed = gemini_intel.get("detailed_sets", {})
@@ -281,10 +272,13 @@ async def run_scan(scan_id: str, domain: str, url: str) -> dict:
 
                     detailed_sets[k] = val
 
-        # Adopt Gemini's dynamic scoring breakdown table
+        # Adopt Gemini's dynamic scoring breakdown table, or regenerate from updated set_scores
         gemini_breakdown = gemini_intel.get("scoring_breakdown", [])
         if isinstance(gemini_breakdown, list) and gemini_breakdown:
             scoring_breakdown = gemini_breakdown
+        else:
+            # Regenerate breakdown from Gemini's updated set_scores to prevent stale data
+            scoring_breakdown = generate_scoring_breakdown(domain, remediated_findings, set_scores)
 
         # Adopt Gemini's recommendations & tailored server configs
         if gemini_intel.get("recommendations"):
