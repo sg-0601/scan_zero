@@ -161,7 +161,8 @@ export default function ScanZeroDashboard({ results, onNewScan }: ScanZeroDashbo
   }, [results]);
 
   const isComparison = siteResults.length > 1;
-  const currentSite = siteResults[selectedSiteIndex] || siteResults[0];
+  const rawSite = siteResults[selectedSiteIndex] || siteResults[0];
+  const currentSite = rawSite ? { ...rawSite, domain: String(rawSite.domain || "").toLowerCase() } : rawSite;
 
   // Silent background poller to stream in OWASP ZAP cloud results when GitHub Actions runner finishes
   useEffect(() => {
@@ -470,7 +471,7 @@ async function handleRequest(request) {
                     : "bg-gray-100 hover:bg-gray-100 text-gray-600 border border-gray-200"
                 }`}
               >
-                <span>{r.domain}</span>
+                <span>{r.domain.toLowerCase()}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
                     selectedSiteIndex === i ? "bg-gray-50/30 text-gray-900" : "bg-white text-teal-600"
@@ -507,12 +508,44 @@ async function handleRequest(request) {
         </div>
       </div>
 
+      {/* Mobile Horizontal Navigation Tabs (Visible only on mobile/tablet < lg, hidden on desktop) */}
+      <div className="lg:hidden w-full bg-white/95 backdrop-blur-md border-b border-gray-200 sticky top-16 z-30 px-3 py-2 shadow-xs print:hidden">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeSection === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveSection(item.id);
+                  const el = document.getElementById(`section-${item.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  } else {
+                    window.scrollTo({ top: 110, behavior: 'smooth' });
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+                  isActive
+                    ? "bg-teal-500 text-gray-900 shadow-sm font-bold scale-[1.02]"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-gray-900" : "text-gray-500"}`} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Main Dashboard Layout (Left Nav + Main Content + Right Activity Stream) */}
       <div className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:block print:p-0 print:m-0 print:max-w-none">
         {/* ========================================================= */}
         {/* LEFT NAVIGATION SIDEBAR (9 Sections) */}
         {/* ========================================================= */}
-        <aside className="lg:col-span-3 xl:col-span-2 flex flex-col gap-1.5 bg-white border border-gray-200 rounded-2xl p-3 h-fit sticky top-36 print:hidden">
+        <aside className="hidden lg:flex lg:col-span-3 xl:col-span-2 flex-col gap-1.5 bg-white border border-gray-200 rounded-2xl p-3 h-fit sticky top-36 print:hidden">
           <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-gray-500 font-bold border-b border-gray-200 mb-1">
             Analysis Views
           </div>

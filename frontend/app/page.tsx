@@ -233,7 +233,7 @@ export default function Home() {
     const score = Math.round(data.score ?? rJson.score ?? 75);
     const grade: "A+" | "A" | "B" | "C" | "D" | "F" =
       data.grade || rJson.grade || (score >= 90 ? "A+" : score >= 80 ? "A" : score >= 70 ? "B" : score >= 60 ? "C" : score >= 50 ? "D" : "F");
-    const domain = data.domain || rJson.domain || fallbackDomain;
+    const domain = String(data.domain || rJson.domain || fallbackDomain || "").toLowerCase();
     const url = rJson.url || fallbackUrl;
 
     const setScores = rJson.set_scores || {
